@@ -757,6 +757,36 @@ function fmtDur(ms) {
 // ─────────────────────────────────────────────
 // Firebase init
 // ─────────────────────────────────────────────
+let restPollTimer = null;
+
+function applyPriceData(d, source) {
+    if (!d || !d.current) { setFbPill('live', '연결됨 (데이터 없음)'); return; }
+    const isNew = !priceData.ts || d.ts > priceData.ts;
+    fbConnected = true;
+    priceData = d;
+    saveLocal(d);
+    setFbPill('live', source === 'ws' ? '실시간 연결됨' : '연결됨');
+    document.getElementById('updInfo').style.display = 'block';
+    document.getElementById('lastUpdTxt').innerHTML = `마지막 갱신: <strong>${fmtDt(d.ts)}</strong>`;
+    renderAll(d);
+    if (isNew && fbConnected) showToast('✅ 시세 갱신!');
+}
+
+function fetchRest() {
+    fetch(`${FIREBASE_CONFIG.databaseURL}/prices.json`)
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => {
+            applyPriceData(d, 'rest');
+            // 60초마다 폴링
+            restPollTimer = setTimeout(fetchRest, 60000);
+        })
+        .catch(e => {
+            setFbPill('err', '연결 실패');
+            console.error('[REST폴백]', e);
+            restPollTimer = setTimeout(fetchRest, 60000);
+        });
+}
+
 function initFirebase() {
     const isFilled = Object.values(FIREBASE_CONFIG).every(v => v && !v.includes('FILL_IN'));
     if (!isFilled) {
@@ -766,37 +796,35 @@ function initFirebase() {
         return;
     }
 
+    setFbPill('wait', '연결 중...');
+
+    // 5초 안에 WebSocket 응답 없으면 REST 폴백 (iOS Safari 대응)
+    const fallbackTimer = setTimeout(() => {
+        if (!fbConnected) {
+            console.log('[Firebase] WebSocket 타임아웃 → REST 폴백');
+            fetchRest();
+        }
+    }, 5000);
+
     try {
         firebase.initializeApp(FIREBASE_CONFIG);
         const db = firebase.database();
         const ref = db.ref('prices');
 
-        setFbPill('wait', '연결 중...');
-
         ref.on('value', snap => {
-            const d = snap.val();
-            if (!d || !d.current) {
-                setFbPill('live', '연결됨 (데이터 없음)');
-                return;
-            }
-            fbConnected = true;
-            priceData = d;
-            saveLocal(d);
-            setFbPill('live', '실시간 연결됨');
-            document.getElementById('updInfo').style.display = 'block';
-            document.getElementById('lastUpdTxt').innerHTML = `마지막 갱신: <strong>${fmtDt(d.ts)}</strong>`;
-            renderAll(d);
-            // Toast only on update, not initial load
-            if (fbConnected) showToast('✅ 시세 갱신!');
+            clearTimeout(fallbackTimer);
+            if (restPollTimer) { clearTimeout(restPollTimer); restPollTimer = null; }
+            applyPriceData(snap.val(), 'ws');
         }, err => {
-            setFbPill('err', 'Firebase 오류');
-            console.error(err);
+            clearTimeout(fallbackTimer);
+            console.error('[Firebase WS]', err);
+            if (!fbConnected) fetchRest();
         });
 
     } catch(e) {
-        setFbPill('err', 'Firebase 초기화 실패');
-        console.error(e);
-        renderAll(priceData);
+        clearTimeout(fallbackTimer);
+        console.error('[Firebase init]', e);
+        fetchRest();
     }
 }
 
@@ -1579,6 +1607,19 @@ renderPlantRec();
 renderTimers();
 updateNotifBtn();
 initFirebase();
+
+// iOS 백그라운드 복귀 시 데이터 재요청 (WebSocket 끊김 대응)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (restPollTimer) {
+        // REST 폴백 모드: 즉시 재요청
+        clearTimeout(restPollTimer);
+        fetchRest();
+    } else if (!fbConnected) {
+        // WebSocket 아직 미연결: 재시도
+        fetchRest();
+    }
+});
 
 // Timer tick
 timerTick=setInterval(tickTimers,1000);
