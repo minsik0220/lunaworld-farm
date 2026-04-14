@@ -1610,6 +1610,7 @@ renderPlantRec();
 renderTimers();
 updateNotifBtn();
 initFirebase();
+fetch('/api/log-visit').catch(()=>{});
 
 // iOS 백그라운드 복귀 시 데이터 재요청 (WebSocket 끊김 대응)
 document.addEventListener('visibilitychange', () => {
