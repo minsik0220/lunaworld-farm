@@ -1064,12 +1064,12 @@ function renderTable(items) {
             const iconCell  = item.atBase
                 ? `<span style="color:var(--muted);font-size:.8rem">원가</span>`
                 : trendInfo
-                    ? `<span title="${trendInfo.label}" style="color:${trendInfo.c};cursor:default">${trendInfo.s}</span>`
+                    ? `<span style="color:${trendInfo.c};white-space:nowrap">${trendInfo.s} <span style="font-size:.75rem;font-weight:600">${trendInfo.label}</span></span>`
                     : icon;
             return rows+=`<tr class="${cls}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}C</span>`,`<span style="color:var(--muted)">${item.prev}C</span>`,priceCell,changeCell,pctCell,iconCell,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         });
     });
-    document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th><th>알림</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th style="min-width:160px">추세 예측</th><th>알림</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // ─────────────────────────────────────────────
