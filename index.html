@@ -164,39 +164,74 @@
         .calc-total span{color:var(--gold);font-size:1.45rem;}
         .calc-detail{font-size:.75rem;color:var(--muted);margin-top:2px;}
 
-        /* ── Timer tab ── */
-        .timer-header{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+        /* ── Floating Timer Panel ── */
+        .timer-fab{
+            position:fixed;bottom:24px;right:24px;z-index:200;
+            width:60px;height:60px;border-radius:50%;border:none;
+            background:linear-gradient(135deg,#fbbf24,#f59e0b);
+            color:#0f1117;font-size:1.5rem;cursor:pointer;
+            box-shadow:0 4px 20px rgba(251,191,36,.4);
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            transition:all .2s;
+        }
+        .timer-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(251,191,36,.55);}
+        .timer-fab.has-running{background:linear-gradient(135deg,#4ade80,#22c55e);box-shadow:0 4px 20px rgba(74,222,128,.4);}
+        .timer-fab.has-running:hover{box-shadow:0 6px 28px rgba(74,222,128,.55);}
+        .timer-fab-label{font-size:.5rem;font-weight:800;margin-top:1px;letter-spacing:.5px;line-height:1;}
+
+        .timer-panel{
+            position:fixed;bottom:96px;right:24px;z-index:200;
+            width:min(380px,calc(100vw - 32px));
+            max-height:calc(100vh - 120px);
+            background:var(--bg2);border:1px solid var(--border);
+            border-radius:18px;overflow:hidden;
+            box-shadow:0 8px 40px rgba(0,0,0,.6);
+            display:flex;flex-direction:column;
+            transform:scale(.92) translateY(16px);opacity:0;pointer-events:none;
+            transition:all .22s cubic-bezier(.34,1.56,.64,1);
+        }
+        .timer-panel.open{transform:scale(1) translateY(0);opacity:1;pointer-events:auto;}
+
+        .timer-panel-head{
+            padding:14px 16px;border-bottom:1px solid var(--border);
+            display:flex;align-items:center;justify-content:space-between;
+            background:var(--card);flex-shrink:0;
+        }
+        .timer-panel-title{font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:7px;}
+        .timer-panel-actions{display:flex;gap:8px;align-items:center;}
+
+        .timer-panel-body{overflow-y:auto;padding:12px;flex:1;}
+
         .notif-pill{
-            padding:5px 14px;border-radius:20px;border:1px solid var(--border);
-            font-size:.78rem;font-weight:600;cursor:pointer;
+            padding:4px 11px;border-radius:20px;border:1px solid var(--border);
+            font-size:.72rem;font-weight:600;cursor:pointer;
             background:var(--inp);color:var(--muted);transition:all .15s;
         }
         .notif-pill.granted{border-color:rgba(74,222,128,.4);color:var(--green);background:rgba(74,222,128,.08);}
         .notif-pill.denied{border-color:rgba(248,113,113,.3);color:var(--red);background:rgba(248,113,113,.06);cursor:default;}
 
-        .timer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
-        .timer-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;transition:border-color .2s;}
+        .timer-grid{display:flex;flex-direction:column;gap:10px;}
+        .timer-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px;transition:border-color .2s;}
         .timer-card.running{border-color:rgba(74,222,128,.4);}
         .timer-card.done{border-color:rgba(251,191,36,.5);}
 
-        .tc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
-        .tc-name{font-size:1rem;font-weight:700;}
-        .tc-dur{font-size:.75rem;color:var(--muted);margin-top:2px;}
-        .tc-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:0 2px;transition:color .15s;}
+        .tc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+        .tc-name{font-size:.92rem;font-weight:700;}
+        .tc-dur{font-size:.7rem;color:var(--muted);margin-top:1px;}
+        .tc-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 2px;transition:color .15s;}
         .tc-del:hover{color:var(--red);}
 
         .tc-display{
-            text-align:center;padding:16px 0;
-            font-size:2.4rem;font-weight:800;letter-spacing:2px;
+            text-align:center;padding:10px 0;
+            font-size:2rem;font-weight:800;letter-spacing:2px;
             font-variant-numeric:tabular-nums;
         }
         .tc-display.running{color:var(--green);}
         .tc-display.done{color:var(--gold);}
         .tc-display.idle{color:var(--muted);}
-        .tc-done-label{text-align:center;font-size:.85rem;font-weight:700;color:var(--gold);margin-top:-8px;margin-bottom:8px;}
 
-        .tc-btns{display:flex;gap:8px;margin-top:12px;}
-        .tc-btn{flex:1;padding:7px;border-radius:8px;border:none;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .15s;}
+        .tc-btns{display:flex;gap:7px;margin-top:10px;}
+        .tc-btn{flex:1;padding:6px;border-radius:7px;border:none;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;}
         .tc-btn.start{background:var(--green);color:#0f1117;}
         .tc-btn.start:hover{background:#22c55e;}
         .tc-btn.stop{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3);}
@@ -206,11 +241,11 @@
 
         /* Add timer modal */
         .add-btn{
-            padding:8px 20px;border-radius:8px;border:none;
+            padding:6px 14px;border-radius:7px;border:none;
             background:var(--gold);color:#0f1117;
-            font-size:.88rem;font-weight:700;cursor:pointer;transition:all .15s;
+            font-size:.8rem;font-weight:700;cursor:pointer;transition:all .15s;
         }
-        .add-btn:hover{background:#f59e0b;transform:translateY(-1px);}
+        .add-btn:hover{background:#f59e0b;}
 
         /* ── Modal ── */
         .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
@@ -298,7 +333,6 @@
 <div class="tab-nav">
     <button class="tab-btn on" onclick="switchTab('price',this)">📊 시세 현황</button>
     <button class="tab-btn" onclick="switchTab('calc',this)">🧮 판매 계산기</button>
-    <button class="tab-btn" onclick="switchTab('timer',this)">⏱ 작물 타이머</button>
 </div>
 
 <!-- ══════════════════════════════════════════ -->
@@ -405,22 +439,27 @@
 </div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- 타이머 탭                                  -->
-<!-- ══════════════════════════════════════════ -->
-<div id="tab-timer" class="tab-content">
-<div class="container">
+<!-- ══ Floating Timer Button ══ -->
+<button class="timer-fab" id="timerFab" onclick="toggleTimerPanel()" title="작물 타이머">
+    ⏱
+    <span class="timer-fab-label" id="timerFabLabel">타이머</span>
+</button>
 
-    <div class="timer-header">
-        <button class="add-btn" onclick="openAddTimer()">＋ 타이머 추가</button>
-        <button class="notif-pill" id="notifBtn" onclick="requestNotifPerm()">🔔 알림 허용</button>
+<!-- ══ Floating Timer Panel ══ -->
+<div class="timer-panel" id="timerPanel">
+    <div class="timer-panel-head">
+        <div class="timer-panel-title">⏱ 작물 타이머</div>
+        <div class="timer-panel-actions">
+            <button class="notif-pill" id="notifBtn" onclick="requestNotifPerm()">🔔 알림</button>
+            <button class="add-btn" onclick="openAddTimer()">＋ 추가</button>
+            <button class="mclose" onclick="closeTimerPanel()">✕</button>
+        </div>
     </div>
-
-    <div class="timer-grid" id="timerGrid">
-        <div class="empty" style="grid-column:1/-1"><div class="empty-i">⏱</div><div class="empty-t">타이머가 없습니다</div><div class="empty-s">[타이머 추가]를 눌러 작물 수확 알림을 설정하세요</div></div>
+    <div class="timer-panel-body">
+        <div class="timer-grid" id="timerGrid">
+            <div class="empty"><div class="empty-i">⏱</div><div class="empty-t">타이머가 없습니다</div><div class="empty-s">[＋ 추가]를 눌러 수확 알림을 설정하세요</div></div>
+        </div>
     </div>
-
-</div>
 </div>
 
 <!-- ══ Footer ══ -->
@@ -676,6 +715,45 @@ function toggleManual() {
 }
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Floating Timer Panel
+// ─────────────────────────────────────────────
+function toggleTimerPanel(){
+    const panel=document.getElementById('timerPanel');
+    panel.classList.toggle('open');
+}
+function closeTimerPanel(){
+    document.getElementById('timerPanel').classList.remove('open');
+}
+// 패널 외부 클릭 시 닫기
+document.addEventListener('click',e=>{
+    const panel=document.getElementById('timerPanel');
+    const fab=document.getElementById('timerFab');
+    if(panel.classList.contains('open')&&!panel.contains(e.target)&&!fab.contains(e.target)
+       &&!document.getElementById('addTimerModal').classList.contains('open')){
+        panel.classList.remove('open');
+    }
+});
+
+// FAB 배지: 실행 중 타이머 최소 남은 시간 표시
+function updateFab(){
+    const fab=document.getElementById('timerFab');
+    const label=document.getElementById('timerFabLabel');
+    const running=timers.filter(t=>t.state==='running');
+    const done=timers.filter(t=>t.state==='done');
+    if(done.length){
+        fab.classList.add('has-running');
+        label.textContent='완료!';
+    } else if(running.length){
+        const minRem=Math.min(...running.map(t=>getRem(t)));
+        fab.classList.add('has-running');
+        label.textContent=fmtMs(minRem);
+    } else {
+        fab.classList.remove('has-running');
+        label.textContent='타이머';
+    }
+}
+
 // Tab switching
 // ─────────────────────────────────────────────
 function switchTab(name, el) {
@@ -684,7 +762,6 @@ function switchTab(name, el) {
     document.getElementById(`tab-${name}`).classList.add('on');
     el.classList.add('on');
     if(name==='calc') renderCalc();
-    if(name==='timer') renderTimers();
 }
 
 // ─────────────────────────────────────────────
@@ -885,7 +962,7 @@ function submitAddTimer(){
     timers.push({id:Date.now().toString(),name,duration:dur,startedAt:null,state:'idle'});
     saveTimers();
     closeModal('addTimerModal');
-    switchTab('timer',document.querySelector('[onclick="switchTab(\'timer\',this)"]'));
+    document.getElementById('timerPanel').classList.add('open');
     renderTimers();
     showToast(`⏱ "${name}" 타이머 추가됨`);
 }
@@ -920,8 +997,9 @@ function getRem(timer){
 
 function renderTimers(){
     updateNotifBtn();
+    updateFab();
     if(!timers.length){
-        document.getElementById('timerGrid').innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-i">⏱</div><div class="empty-t">타이머가 없습니다</div><div class="empty-s">[타이머 추가]를 눌러 작물 수확 알림을 설정하세요</div></div>`;
+        document.getElementById('timerGrid').innerHTML=`<div class="empty"><div class="empty-i">⏱</div><div class="empty-t">타이머가 없습니다</div><div class="empty-s">[＋ 추가]를 눌러 수확 알림을 설정하세요</div></div>`;
         return;
     }
     document.getElementById('timerGrid').innerHTML=timers.map(t=>{
@@ -968,6 +1046,7 @@ function tickTimers(){
         }
     });
     if(changed) saveTimers();
+    updateFab();
 }
 
 function playAlarm(){
