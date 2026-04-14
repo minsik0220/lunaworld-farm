@@ -495,7 +495,7 @@
 
     <div class="calc-footer">
         <div>
-            <div class="calc-total">총 판매 수익: <span id="calcTotal">0</span> G</div>
+            <div class="calc-total">총 판매 수익: <span id="calcTotal">0</span> C</div>
             <div class="calc-detail" id="calcDetail">선택된 작물이 없습니다</div>
         </div>
         <button class="btn btn-gold" onclick="copyCalcResult()">📋 결과 복사</button>
@@ -584,7 +584,7 @@
             <button class="mclose" onclick="closeModal('alertModal')">✕</button>
         </div>
         <div class="form-group">
-            <label class="form-label">목표 가격 (G)</label>
+            <label class="form-label">목표 가격 (C)</label>
             <input type="number" class="form-input" id="alertPrice" min="1" placeholder="목표 가격 입력...">
         </div>
         <div class="form-group">
@@ -671,8 +671,8 @@ const SEASON_CROPS = {
     '가을': ['양배추', '파인애플', '레몬'],
     '겨울': ['무', '석류', '포도']
 };
-const CYCLE_NORMAL   = 19; // 심기 4분 + 5단계×3분
-const CYCLE_SEASONAL = 16; // 심기 4분 + 4단계×3분 (2단계부터 시작)
+const CYCLE_NORMAL   = 15;
+const CYCLE_SEASONAL = 12;
 
 // ── 전체 작물 목록 & 원가 ──
 const ALL_CROPS = ['상추','딸기','옥수수','오렌지','토마토','바나나','양배추','파인애플','레몬','무','석류','포도'];
@@ -965,8 +965,8 @@ function renderRec(items) {
         <div class="card rec ${tcls(item.tier)}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">
             <div class="rec-top">${tbadge(item.tier)}<span>${RANKS[i]}</span></div>
             <div class="rec-name">${item.name}</div>
-            <div class="rec-pr"><span class="rec-price">${item.current}G</span><span class="rec-pct">+${pct(item)}%</span></div>
-            <div class="rec-sub">원가 ${item.base}G · 변동 +${item.change}G</div>
+            <div class="rec-pr"><span class="rec-price">${item.current}C</span><span class="rec-pct">+${pct(item)}%</span></div>
+            <div class="rec-sub">원가 ${item.base}C · 변동 +${item.change}C</div>
         </div>`).join('');
 }
 
@@ -1021,14 +1021,14 @@ function renderTable(items) {
         groupItems.forEach((item,ii)=>{
             const p=pct(item),cc=item.change>0?'up':item.change<0?'dn':'fl',pc=p>0?'pp':p<0?'pn':'pz',icon=item.change>0?'📈':item.change<0?'📉':'➡️';
             const hasAlert=!!priceAlerts[alertKey(item.tier,item.name)];
-            const bell=`<button class="bell-btn${hasAlert?' active':''}" onclick="event.stopPropagation();openAlertModal('${esc(item.tier)}','${esc(item.name)}',${item.current})" title="${hasAlert?`알림: ${priceAlerts[alertKey(item.tier,item.name)].direction==='above'?'≥':'≤'}${priceAlerts[alertKey(item.tier,item.name)].targetPrice}G`:'가격 알림 설정'}">🔔</button>`;
+            const bell=`<button class="bell-btn${hasAlert?' active':''}" onclick="event.stopPropagation();openAlertModal('${esc(item.tier)}','${esc(item.name)}',${item.current})" title="${hasAlert?`알림: ${priceAlerts[alertKey(item.tier,item.name)].direction==='above'?'≥':'≤'}${priceAlerts[alertKey(item.tier,item.name)].targetPrice}C`:'가격 알림 설정'}">🔔</button>`;
             // 단일 작물 그룹은 헤더가 없으므로 첫 행에 구분선 추가
             const cls=[multi?'group-child':'',(!multi&&gi>0&&ii===0)?'group-first':'',item.atBase?'at-base':''].filter(Boolean).join(' ');
-            const priceCell=item.atBase?`<span style="font-weight:700;color:var(--muted)">${item.current}G</span>`:`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`;
-            const changeCell=item.atBase?`<span class="fl">–</span>`:`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`;
+            const priceCell=item.atBase?`<span style="font-weight:700;color:var(--muted)">${item.current}C</span>`:`<span style="font-weight:700;color:var(--gold)">${item.current}C</span>`;
+            const changeCell=item.atBase?`<span class="fl">–</span>`:`<span class="${cc}">${item.change>0?'+':''}${item.change}C</span>`;
             const pctCell=item.atBase?`<span class="fl">–</span>`:`<span class="${pc}">${p>=0?'+':''}${p}%</span>`;
             const iconCell=item.atBase?`<span style="color:var(--muted);font-size:.8rem">원가</span>`:icon;
-            return rows+=`<tr class="${cls}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,priceCell,changeCell,pctCell,iconCell,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
+            return rows+=`<tr class="${cls}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}C</span>`,`<span style="color:var(--muted)">${item.prev}C</span>`,priceCell,changeCell,pctCell,iconCell,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         });
     });
     document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th><th>알림</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -1060,7 +1060,7 @@ function submitAlert() {
     saveAlerts();
     closeModal('alertModal');
     renderTable();
-    showToast(`🔔 ${_alertName} ${dir === 'above' ? '≥' : '≤'} ${price}G 알림 설정`);
+    showToast(`🔔 ${_alertName} ${dir === 'above' ? '≥' : '≤'} ${price}C 알림 설정`);
     // 알림 권한 요청
     if (Notification.permission === 'default') Notification.requestPermission().then(updateNotifBtn);
 }
@@ -1085,7 +1085,7 @@ function checkAlerts(items) {
                                              : item.current <= al.targetPrice;
         if (met) {
             new Notification(`🔔 가격 알림: ${item.name}`, {
-                body: `[${item.tier}] ${item.name}  현재 ${item.current}G  (목표 ${al.direction==='above'?'≥':'≤'}${al.targetPrice}G)`,
+                body: `[${item.tier}] ${item.name}  현재 ${item.current}C  (목표 ${al.direction==='above'?'≥':'≤'}${al.targetPrice}C)`,
                 icon: '/favicon.ico'
             });
             al.lastFiredAt = now;
@@ -1128,13 +1128,13 @@ function renderPeakPrediction(history) {
             const peak = Math.round(cur + s1 * t + 0.5 * ds * t * t);
             const hrs  = Math.ceil(t);
             if (peak > cur && hrs >= 1 && hrs <= 12) {
-                html = `<span style="color:var(--gold)">📈 상승 중</span> — 약 <strong>${hrs}시간 후</strong> 예상 최고가 <strong style="color:var(--gold)">${peak.toLocaleString()}G</strong>`;
+                html = `<span style="color:var(--gold)">📈 상승 중</span> — 약 <strong>${hrs}시간 후</strong> 예상 최고가 <strong style="color:var(--gold)">${peak.toLocaleString()}C</strong>`;
             } else {
                 html = `<span style="color:var(--gold)">📈 상승 중</span> — 고점 접근 중, 곧 반전 예상`;
             }
         } else {
             const rough = Math.round(cur + s1 * 3);
-            html = `<span style="color:var(--green)">📈 가속 상승 중</span> — 3시간 내 <strong>${rough.toLocaleString()}G</strong> 이상 예상 (불확실)`;
+            html = `<span style="color:var(--green)">📈 가속 상승 중</span> — 3시간 내 <strong>${rough.toLocaleString()}C</strong> 이상 예상 (불확실)`;
         }
     } else if (s1 < 0) {
         // 하락 중
@@ -1143,7 +1143,7 @@ function renderPeakPrediction(history) {
             const trough = Math.round(cur + s1 * t + 0.5 * ds * t * t);
             const hrs  = Math.ceil(t);
             if (trough < cur && hrs >= 1 && hrs <= 12) {
-                html = `<span style="color:var(--red)">📉 하락 중</span> — 약 <strong>${hrs}시간 후</strong> 예상 저점 <strong style="color:var(--blue)">${trough.toLocaleString()}G</strong> → 저점 매수·심기 타이밍`;
+                html = `<span style="color:var(--red)">📉 하락 중</span> — 약 <strong>${hrs}시간 후</strong> 예상 저점 <strong style="color:var(--blue)">${trough.toLocaleString()}C</strong> → 저점 매수·심기 타이밍`;
             } else {
                 html = `<span style="color:var(--red)">📉 하락 중</span> — 저점 접근, 곧 반등 가능`;
             }
@@ -1260,7 +1260,7 @@ function renderPlantRec() {
         ].filter(([, item]) => item).map(([, item, tr]) => {
             const h      = Math.round(item.current * 60 / g.cycle);
             const trHtml = tr ? `<span class="trend-sig" style="color:${tr.c}">${tr.s}</span>` : '';
-            return `<div class="plant-tier-row">${tbadge(item.tier)}<span class="plant-tier-h">${h.toLocaleString()}G/h</span>${trHtml}</div>`;
+            return `<div class="plant-tier-row">${tbadge(item.tier)}<span class="plant-tier-h">${h.toLocaleString()}C/h</span>${trHtml}</div>`;
         }).join('');
         return `
         <div class="card plant-top-card">
@@ -1268,7 +1268,7 @@ function renderPlantRec() {
             ${g.seasonal ? '<div class="plant-season-badge">⭐ 시즌 작물</div>' : ''}
             <div style="font-size:1rem;font-weight:800;margin:6px 0 2px">${g.name}</div>
             <div class="plant-tier-list">${tierRows}</div>
-            <div class="plant-detail">${g.cycle}분 사이클 &nbsp;·&nbsp; 평균 ${g.avgHourly.toLocaleString()}G/h</div>
+            <div class="plant-detail">${g.cycle}분 사이클 &nbsp;·&nbsp; 평균 ${g.avgHourly.toLocaleString()}C/h</div>
         </div>`;
     }).join('');
 
@@ -1282,7 +1282,7 @@ function renderPlantRec() {
         if (!item) return `<td style="color:var(--border)">–</td>`;
         const h      = Math.round(item.current * 60 / cycle);
         const trHtml = tr ? ` <span class="trend-sig" style="color:${tr.c}">${tr.s}</span>` : '';
-        return `<td style="font-weight:700">${h.toLocaleString()}G/h${trHtml}</td>`;
+        return `<td style="font-weight:700">${h.toLocaleString()}C/h${trHtml}</td>`;
     }
 
     tableEl.innerHTML = noTrendNote + `<div class="tw"><table class="pt">
@@ -1317,7 +1317,7 @@ function openChart(tier,name){
     if(history.length<2){
         document.getElementById('chartCanvas').style.display='none';
         const cur=history[0];
-        document.getElementById('chartStats').innerHTML=cur?`<div class="cs" style="grid-column:1/-1"><div class="csv" style="color:var(--gold)">${cur.price}G</div><div class="csl">현재가 (기록 1건)</div></div>`:`<div class="cs" style="grid-column:1/-1"><div class="csl">기록 없음</div></div>`;
+        document.getElementById('chartStats').innerHTML=cur?`<div class="cs" style="grid-column:1/-1"><div class="csv" style="color:var(--gold)">${cur.price}C</div><div class="csl">현재가 (기록 1건)</div></div>`:`<div class="cs" style="grid-column:1/-1"><div class="csl">기록 없음</div></div>`;
         renderPeakPrediction(history);
         return;
     }
@@ -1326,10 +1326,10 @@ function openChart(tier,name){
     chartInst=new Chart(document.getElementById('chartCanvas').getContext('2d'),{
         type:'line',
         data:{labels,datasets:[{label:'현재 변동가',data:prices,borderColor:'#fbbf24',backgroundColor:'rgba(251,191,36,.12)',borderWidth:2.5,pointBackgroundColor:'#fbbf24',pointRadius:5,tension:.35,fill:true},{label:'원가',data:Array(history.length).fill(base),borderColor:'#475569',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}]},
-        options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#94a3b8',font:{size:12}}},tooltip:{backgroundColor:'#1e2235',borderColor:'#2d3148',borderWidth:1,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y}G`}}},scales:{x:{ticks:{color:'#64748b',font:{size:11},maxRotation:45},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>v+'G'},grid:{color:'#1e2235'}}}}
+        options:{responsive:true,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#94a3b8',font:{size:12}}},tooltip:{backgroundColor:'#1e2235',borderColor:'#2d3148',borderWidth:1,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y}C`}}},scales:{x:{ticks:{color:'#64748b',font:{size:11},maxRotation:45},grid:{color:'#1e2235'}},y:{ticks:{color:'#64748b',callback:v=>v+'C'},grid:{color:'#1e2235'}}}}
     });
     const mx=Math.max(...prices),mn=Math.min(...prices),cp=pct({current:prices.at(-1),base});
-    document.getElementById('chartStats').innerHTML=`<div class="cs"><div class="csv" style="color:var(--green)">${mx}G</div><div class="csl">기록 최고가</div></div><div class="cs"><div class="csv" style="color:var(--red)">${mn}G</div><div class="csl">기록 최저가</div></div><div class="cs"><div class="csv ${cp>=0?'pp':'pn'}">${cp>=0?'+':''}${cp}%</div><div class="csl">현재 수익률</div></div>`;
+    document.getElementById('chartStats').innerHTML=`<div class="cs"><div class="csv" style="color:var(--green)">${mx}C</div><div class="csl">기록 최고가</div></div><div class="cs"><div class="csv" style="color:var(--red)">${mn}C</div><div class="csl">기록 최저가</div></div><div class="cs"><div class="csv ${cp>=0?'pp':'pn'}">${cp>=0?'+':''}${cp}%</div><div class="csl">현재 수익률</div></div>`;
     renderPeakPrediction(history);
 }
 
@@ -1368,7 +1368,7 @@ function renderCalc(){
         } else {
             inp=`<input class="ci sm" type="number" min="0" value="${getSets(item.tier,item.name)||''}" placeholder="0" oninput="setQSE('${esc(item.tier)}','${esc(item.name)}',this.value,false)"><span style="margin:0 4px;color:var(--muted);font-size:.8rem">세트+</span><input class="ci sm" type="number" min="0" value="${getExtra(item.tier,item.name)||''}" placeholder="0" oninput="setQSE('${esc(item.tier)}','${esc(item.name)}',this.value,true)"><span style="margin-left:4px;font-size:.78rem;color:var(--muted)">개${qty>0?` <span style="color:var(--muted)">(=${qty})</span>`:''}`;
         }
-        return `<tr><td>${tbadge(item.tier)}</td><td style="font-weight:600">${item.name}</td><td style="color:var(--gold)">${item.current}G</td><td>${inp}</td><td class="${sub>0?'csub':'csub z'}">${sub>0?sub.toLocaleString()+'G':'–'}</td></tr>`;
+        return `<tr><td>${tbadge(item.tier)}</td><td style="font-weight:600">${item.name}</td><td style="color:var(--gold)">${item.current}C</td><td>${inp}</td><td class="${sub>0?'csub':'csub z'}">${sub>0?sub.toLocaleString()+'C':'–'}</td></tr>`;
     }).join('');
     document.getElementById('calcWrap').innerHTML=`<div class="tw"><table class="ct"><thead><tr><th>티어</th><th>작물명</th><th>현재가</th><th>${modeLabel}</th><th>소계</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     updateCalcTotal();
@@ -1379,7 +1379,7 @@ function updateCalcTotal(){
     let total=0;const lines=[];
     items.forEach(item=>{
         const qty=totalQty(item.tier,item.name);
-        if(qty>0){const sub=qty*item.current;total+=sub;lines.push(`${item.name} ×${qty.toLocaleString()} = ${sub.toLocaleString()}G`);}
+        if(qty>0){const sub=qty*item.current;total+=sub;lines.push(`${item.name} ×${qty.toLocaleString()} = ${sub.toLocaleString()}C`);}
     });
     document.getElementById('calcTotal').textContent=total.toLocaleString();
     document.getElementById('calcDetail').textContent=lines.length?`${lines.length}종 · `+lines.slice(0,3).join(' / ')+(lines.length>3?` 외 ${lines.length-3}종`:''):'선택된 작물이 없습니다';
@@ -1392,9 +1392,9 @@ function copyCalcResult(){
     const lines=['📊 판매 수익 계산 결과'];let total=0;
     items.forEach(item=>{
         const qty=totalQty(item.tier,item.name);
-        if(qty>0){const sub=qty*item.current;total+=sub;const extra=calcMode==='set'?` (${getSets(item.tier,item.name)}세트+${getExtra(item.tier,item.name)}개)`:'';lines.push(`  [${item.tier}] ${item.name} ×${qty}${extra} → ${sub.toLocaleString()}G`);}
+        if(qty>0){const sub=qty*item.current;total+=sub;const extra=calcMode==='set'?` (${getSets(item.tier,item.name)}세트+${getExtra(item.tier,item.name)}개)`:'';lines.push(`  [${item.tier}] ${item.name} ×${qty}${extra} → ${sub.toLocaleString()}C`);}
     });
-    lines.push(`합계: ${total.toLocaleString()}G`);
+    lines.push(`합계: ${total.toLocaleString()}C`);
     navigator.clipboard.writeText(lines.join('\n')).then(()=>showToast('📋 결과 복사됨!')).catch(()=>showToast('복사 실패','err'));
 }
 
