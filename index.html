@@ -117,6 +117,11 @@
         .pt tbody tr{cursor:pointer;transition:background .1s;}
         .pt tbody tr:hover td{background:rgba(251,191,36,.05);}
         .pt tbody td{padding:10px 14px;border-top:1px solid var(--border);font-size:.87rem;}
+        .group-header td{background:rgba(251,191,36,.06)!important;border-top:2px solid var(--border)!important;padding:8px 14px!important;font-size:.82rem;font-weight:700;color:var(--gold);cursor:default;}
+        .group-header:hover td{background:rgba(251,191,36,.06)!important;}
+        .group-icon{font-size:.9rem;margin-right:2px;}
+        .group-count{font-size:.7rem;color:var(--muted);font-weight:500;margin-left:6px;}
+        .group-child td:nth-child(2){padding-left:28px!important;}
         .up{color:var(--green);font-weight:700;}
         .dn{color:var(--red);font-weight:700;}
         .fl{color:var(--muted);}
@@ -789,7 +794,8 @@ function parseRaw(raw) {
         const im=line.match(/\[([^\]]+)\]\s+(.+)$/);
         if(im){
             if(cur?.base>0) items.push(cur);
-            cur={tier:im[1].trim(),name:im[2].trim(),base:0,prev:0,current:0,change:0};
+            // 메시지 분할로 인한 끝 쉼표/공백 제거
+            cur={tier:im[1].trim(),name:im[2].trim().replace(/[,\s]+$/,''),base:0,prev:0,current:0,change:0};
             continue;
         }
         if(!cur) continue;
@@ -960,22 +966,41 @@ function renderTable(items) {
         case 'down': list=list.filter(i=>i.change<0);break;
         case 'profit': list=list.filter(i=>i.current>i.base);break;
     }
-    if(q) list=list.filter(i=>i.name.includes(q)||i.tier.includes(q));
+    if(q) list=list.filter(i=>i.name.includes(q)||i.tier.includes(q)||getBaseName(i).includes(q));
     const s=document.getElementById('sortSel').value;
-    if(s==='profitPct') list.sort((a,b)=>pct(b)-pct(a));
-    else if(s==='currentPrice') list.sort((a,b)=>b.current-a.current);
-    else if(s==='change') list.sort((a,b)=>Math.abs(b.change)-Math.abs(a.change));
-    else if(s==='tier') list.sort((a,b)=>(TIER_ORD[a.tier]??9)-(TIER_ORD[b.tier]??9)||a.name.localeCompare(b.name));
-    else if(s==='name') list.sort((a,b)=>a.name.localeCompare(b.name));
-    if(!list.length){document.getElementById('tableWrap').innerHTML=`<div class="empty" style="padding:36px"><div class="empty-i">🔍</div><div class="empty-t">조건에 맞는 아이템이 없습니다</div></div>`;return;}
-    document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th><th>알림</th></tr></thead><tbody>${
-        list.map(item=>{
+
+    // 작물 카테고리별 그룹핑
+    const groups=new Map();
+    list.forEach(item=>{
+        const base=getBaseName(item);
+        if(!groups.has(base)) groups.set(base,[]);
+        groups.get(base).push(item);
+    });
+    // 그룹 내 정렬: 커먼 → 언커먼 → 레어
+    groups.forEach(g=>g.sort((a,b)=>(TIER_ORD[a.tier]??9)-(TIER_ORD[b.tier]??9)));
+    // 그룹 간 정렬 (대표값 = 그룹 내 최고 수익률 아이템 기준)
+    let groupArr=[...groups.entries()];
+    if(s==='profitPct') groupArr.sort((a,b)=>Math.max(...b[1].map(pct))-Math.max(...a[1].map(pct)));
+    else if(s==='currentPrice') groupArr.sort((a,b)=>Math.max(...b[1].map(i=>i.current))-Math.max(...a[1].map(i=>i.current)));
+    else if(s==='change') groupArr.sort((a,b)=>Math.max(...b[1].map(i=>Math.abs(i.change)))-Math.max(...a[1].map(i=>Math.abs(i.change))));
+    else if(s==='tier') groupArr.sort((a,b)=>Math.min(...a[1].map(i=>TIER_ORD[i.tier]??9))-Math.min(...b[1].map(i=>TIER_ORD[i.tier]??9))||a[0].localeCompare(b[0]));
+    else if(s==='name') groupArr.sort((a,b)=>a[0].localeCompare(b[0]));
+
+    if(!groupArr.length){document.getElementById('tableWrap').innerHTML=`<div class="empty" style="padding:36px"><div class="empty-i">🔍</div><div class="empty-t">조건에 맞는 아이템이 없습니다</div></div>`;return;}
+
+    let rows='';
+    groupArr.forEach(([baseName,groupItems])=>{
+        if(groupItems.length>1){
+            rows+=`<tr class="group-header"><td colspan="9"><span class="group-icon">🌾</span> ${baseName} <span class="group-count">${groupItems.length}종</span></td></tr>`;
+        }
+        groupItems.forEach(item=>{
             const p=pct(item),cc=item.change>0?'up':item.change<0?'dn':'fl',pc=p>0?'pp':p<0?'pn':'pz',icon=item.change>0?'📈':item.change<0?'📉':'➡️';
             const hasAlert=!!priceAlerts[alertKey(item.tier,item.name)];
             const bell=`<button class="bell-btn${hasAlert?' active':''}" onclick="event.stopPropagation();openAlertModal('${esc(item.tier)}','${esc(item.name)}',${item.current})" title="${hasAlert?`알림: ${priceAlerts[alertKey(item.tier,item.name)].direction==='above'?'≥':'≤'}${priceAlerts[alertKey(item.tier,item.name)].targetPrice}G`:'가격 알림 설정'}">🔔</button>`;
-            return `<tr onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`,`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`,`<span class="${pc}">${p>=0?'+':''}${p}%</span>`,icon,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
-        }).join('')
-    }</tbody></table></div>`;
+            return rows+=`<tr class="${groupItems.length>1?'group-child':''}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`,`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`,`<span class="${pc}">${p>=0?'+':''}${p}%</span>`,icon,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
+        });
+    });
+    document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th><th>알림</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // ─────────────────────────────────────────────
