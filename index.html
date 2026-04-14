@@ -305,9 +305,46 @@
         .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid var(--green);border-radius:10px;padding:10px 22px;font-size:.88rem;font-weight:600;z-index:300;opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
         .toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
 
+        /* ── Plant tab ── */
+        .season-bar{
+            display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+            background:var(--card);border:1px solid var(--border);border-radius:12px;
+            padding:13px 16px;margin-bottom:16px;
+        }
+        .season-bar-label{font-size:.82rem;color:var(--muted);font-weight:600;margin-right:4px;}
+        .season-btn{
+            padding:6px 18px;border-radius:20px;border:1px solid var(--border);
+            background:var(--inp);color:var(--muted);font-size:.85rem;font-weight:700;
+            cursor:pointer;transition:all .15s;
+        }
+        .season-btn.on{background:rgba(251,191,36,.15);border-color:var(--gold);color:var(--gold);}
+        .season-btn:hover:not(.on){color:var(--text);border-color:var(--muted);}
+        .season-hint{margin-left:auto;font-size:.75rem;color:var(--muted);}
+
+        .plant-top3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;}
+        .plant-top-card{
+            padding:18px 16px;border-radius:14px;position:relative;overflow:hidden;
+            border:1px solid var(--border);transition:all .2s;
+        }
+        .plant-top-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(251,191,36,.15);}
+        .plant-top-card.tc{border-top:3px solid var(--common);}
+        .plant-top-card.tu{border-top:3px solid var(--uncommon);}
+        .plant-top-card.tr{border-top:3px solid var(--rare);}
+        .plant-rank{font-size:1.6rem;margin-bottom:6px;}
+        .plant-season-badge{
+            display:inline-block;padding:2px 8px;border-radius:5px;
+            font-size:.7rem;font-weight:700;margin-bottom:6px;
+            background:rgba(251,191,36,.15);color:var(--gold);border:1px solid rgba(251,191,36,.3);
+        }
+        .plant-name{font-size:.9rem;font-weight:700;margin:6px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+        .plant-hourly{font-size:1.5rem;font-weight:800;color:var(--gold);}
+        .plant-hourly span{font-size:.85rem;font-weight:600;color:var(--muted);}
+        .plant-detail{font-size:.72rem;color:var(--muted);margin-top:5px;}
+        .seasonal-row td{background:rgba(251,191,36,.04);}
+
         /* ── Responsive ── */
-        @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr);}.rec-grid{grid-template-columns:repeat(3,1fr);}}
-        @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr);}.rec-grid{grid-template-columns:1fr 1fr;}.pt thead th,.pt tbody td{padding:8px 9px;font-size:.78rem;}.logo{font-size:1.1rem;}}
+        @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr);}.rec-grid{grid-template-columns:repeat(3,1fr);}.plant-top3{grid-template-columns:repeat(3,1fr);}}
+        @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr);}.rec-grid{grid-template-columns:1fr 1fr;}.pt thead th,.pt tbody td{padding:8px 9px;font-size:.78rem;}.logo{font-size:1.1rem;}.plant-top3{grid-template-columns:1fr 1fr;}}
     </style>
 </head>
 <body>
@@ -333,6 +370,7 @@
 <div class="tab-nav">
     <button class="tab-btn on" onclick="switchTab('price',this)">📊 시세 현황</button>
     <button class="tab-btn" onclick="switchTab('calc',this)">🧮 판매 계산기</button>
+    <button class="tab-btn" onclick="switchTab('plant',this)">🌱 심기 추천</button>
 </div>
 
 <!-- ══════════════════════════════════════════ -->
@@ -434,6 +472,37 @@
             <div class="calc-detail" id="calcDetail">선택된 작물이 없습니다</div>
         </div>
         <button class="btn btn-gold" onclick="copyCalcResult()">📋 결과 복사</button>
+    </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- 심기 추천 탭                               -->
+<!-- ══════════════════════════════════════════ -->
+<div id="tab-plant" class="tab-content">
+<div class="container">
+
+    <!-- 시즌 선택 -->
+    <div class="season-bar">
+        <span class="season-bar-label">현재 시즌:</span>
+        <button class="season-btn on" onclick="setSeason('봄',this)">🌸 봄</button>
+        <button class="season-btn" onclick="setSeason('여름',this)">☀️ 여름</button>
+        <button class="season-btn" onclick="setSeason('가을',this)">🍂 가을</button>
+        <button class="season-btn" onclick="setSeason('겨울',this)">❄️ 겨울</button>
+        <span class="season-hint">⭐ 시즌 작물은 16분 사이클 (일반 19분)</span>
+    </div>
+
+    <!-- TOP 3 카드 -->
+    <div class="sec">🏆 심기 추천 TOP 3</div>
+    <div class="plant-top3" id="plantTop3">
+        <div class="empty" style="grid-column:1/-1"><div class="empty-i">🌱</div><div class="empty-t">시세 데이터가 없습니다</div><div class="empty-s">시세 현황 탭에서 데이터를 먼저 불러오세요</div></div>
+    </div>
+
+    <!-- 전체 순위 -->
+    <div class="sec">📊 전체 작물 순위 <span style="font-size:.75rem;font-weight:400;color:var(--muted)">(시간당 수익 기준)</span></div>
+    <div id="plantTableWrap">
+        <div class="empty"><div class="empty-i">🌱</div><div class="empty-t">시세 데이터가 없습니다</div></div>
     </div>
 
 </div>
@@ -543,10 +612,21 @@ const LS_TIMERS = 'lw_timers_v2';
 const TIER_ORD  = { '레어': 0, '언커먼': 1, '커먼': 2 };
 const RANKS     = ['🥇','🥈','🥉','4️⃣','5️⃣'];
 
-let priceData   = loadLocal();
+// ── 심기 추천 상수 ──
+const SEASON_CROPS = {
+    '봄': ['상추', '딸기'],
+    '여름': ['옥수수', '오렌지', '토마토', '바나나'],
+    '가을': ['양배추', '파인애플', '레몬'],
+    '겨울': ['무', '석류', '포도']
+};
+const CYCLE_NORMAL   = 19; // 심기 4분 + 5단계×3분
+const CYCLE_SEASONAL = 16; // 심기 4분 + 4단계×3분 (2단계부터 시작)
+
+let priceData    = loadLocal();
 let activeFilter = 'all';
-let calcMode    = 'indiv';
-let chartInst   = null;
+let calcMode     = 'indiv';
+let chartInst    = null;
+let currentSeason = '봄';
 let calcQty     = {};
 let timers      = loadTimers();
 let timerTick   = null;
@@ -762,6 +842,7 @@ function switchTab(name, el) {
     document.getElementById(`tab-${name}`).classList.add('on');
     el.classList.add('on');
     if(name==='calc') renderCalc();
+    if(name==='plant') renderPlantRec();
 }
 
 // ─────────────────────────────────────────────
@@ -787,6 +868,7 @@ function renderAll(data) {
     document.getElementById('sHist').textContent=`${(data.updates||[]).length}회`;
     renderRec(items);
     renderTable(items);
+    renderPlantRec();
 }
 
 function renderRec(items) {
@@ -836,6 +918,69 @@ function renderTable(items) {
             return `<tr onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`,`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`,`<span class="${pc}">${p>=0?'+':''}${p}%</span>`,icon].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         }).join('')
     }</tbody></table></div>`;
+}
+
+// ─────────────────────────────────────────────
+// Plant recommendation tab
+// ─────────────────────────────────────────────
+function setSeason(s, el) {
+    currentSeason = s;
+    document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('on'));
+    el.classList.add('on');
+    renderPlantRec();
+}
+
+function renderPlantRec() {
+    const items = priceData.current || [];
+    const top3El  = document.getElementById('plantTop3');
+    const tableEl = document.getElementById('plantTableWrap');
+
+    if (!items.length) {
+        const msg = `<div class="empty" style="grid-column:1/-1"><div class="empty-i">🌱</div><div class="empty-t">시세 데이터가 없습니다</div><div class="empty-s">시세 현황 탭에서 데이터를 먼저 불러오세요</div></div>`;
+        top3El.innerHTML  = msg;
+        tableEl.innerHTML = `<div class="empty"><div class="empty-i">🌱</div><div class="empty-t">시세 데이터가 없습니다</div></div>`;
+        return;
+    }
+
+    const seasonalSet = new Set(SEASON_CROPS[currentSeason] || []);
+
+    const ranked = [...items].map(item => {
+        const seasonal = seasonalSet.has(item.name);
+        const cycle    = seasonal ? CYCLE_SEASONAL : CYCLE_NORMAL;
+        const hourly   = Math.round(item.current * 60 / cycle);
+        return { ...item, seasonal, cycle, hourly };
+    }).sort((a, b) => b.hourly - a.hourly);
+
+    // ── TOP 3 cards ──
+    const top3 = ranked.slice(0, 3);
+    top3El.innerHTML = top3.map((item, i) => `
+        <div class="card plant-top-card ${tcls(item.tier)}">
+            <div class="plant-rank">${['🥇','🥈','🥉'][i]}</div>
+            ${item.seasonal ? '<div class="plant-season-badge">⭐ 시즌 작물</div>' : ''}
+            <div class="plant-name">${tbadge(item.tier)} ${item.name}</div>
+            <div class="plant-hourly">${item.hourly.toLocaleString()}G<span>/h</span></div>
+            <div class="plant-detail">현재가 ${item.current}G &nbsp;·&nbsp; ${item.cycle}분 사이클</div>
+        </div>`).join('');
+
+    // ── Full table ──
+    tableEl.innerHTML = `<div class="tw"><table class="pt">
+        <thead><tr>
+            <th>순위</th><th>티어</th><th>작물명</th>
+            <th>현재가</th><th>사이클</th><th>시간당 수익</th>
+        </tr></thead>
+        <tbody>${ranked.map((item, i) => `
+            <tr class="${item.seasonal ? 'seasonal-row' : ''}">
+                <td style="font-weight:700;color:var(--muted);width:42px">${i + 1}</td>
+                <td>${tbadge(item.tier)}</td>
+                <td style="font-weight:600">${item.seasonal ? '⭐ ' : ''}${item.name}</td>
+                <td style="color:var(--gold)">${item.current}G</td>
+                <td style="color:var(--muted)">${item.cycle}분</td>
+                <td style="font-weight:800;color:${item.seasonal ? 'var(--uncommon)' : 'var(--gold)'}">
+                    ${item.hourly.toLocaleString()}G/h
+                </td>
+            </tr>`).join('')}
+        </tbody>
+    </table></div>`;
 }
 
 // ─────────────────────────────────────────────
@@ -1104,6 +1249,7 @@ function showToast(msg,type='ok'){
 // ─────────────────────────────────────────────
 restoreTimers();
 renderAll(priceData);
+renderPlantRec();
 renderTimers();
 updateNotifBtn();
 initFirebase();
