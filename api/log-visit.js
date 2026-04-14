@@ -9,13 +9,14 @@ export default async function handler(req, res) {
              || 'unknown';
     const ua  = req.headers['user-agent'] || '';
     const ref = req.headers['referer'] || '';
-    const ts  = Date.now();
+    const ts   = Date.now();
+    const time = new Date(ts).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 
     try {
         await fetch(`${FIREBASE_URL}/visits.json`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip, ua, ref, ts })
+            body: JSON.stringify({ ip, ua, ref, ts, time })
         });
     } catch (e) {
         // Firebase 실패해도 무시
