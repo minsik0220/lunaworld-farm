@@ -677,6 +677,8 @@ const CYCLE_SEASONAL = 12;
 // ── 전체 작물 목록 & 원가 ──
 const ALL_CROPS = ['상추','딸기','옥수수','오렌지','토마토','바나나','양배추','파인애플','레몬','무','석류','포도'];
 const BASE_PRICES = { '커먼': 3, '언커먼': 6, '레어': 10 };
+const PRICE_MIN   = { '커먼': 2, '언커먼': 4, '레어':  7 };
+const PRICE_MAX   = { '커먼': 4, '언커먼': 8, '레어': 12 };
 const TIER_PREFIX = { '커먼': '', '언커먼': '신선한 ', '레어': '최상급 ' };
 
 // 디스코드에 없는 작물(원가 = 현재가) 을 자동 채움
@@ -1058,7 +1060,12 @@ function renderTable(items) {
             const priceCell=item.atBase?`<span style="font-weight:700;color:var(--muted)">${item.current}C</span>`:`<span style="font-weight:700;color:var(--gold)">${item.current}C</span>`;
             const changeCell=item.atBase?`<span class="fl">–</span>`:`<span class="${cc}">${item.change>0?'+':''}${item.change}C</span>`;
             const pctCell=item.atBase?`<span class="fl">–</span>`:`<span class="${pc}">${p>=0?'+':''}${p}%</span>`;
-            const iconCell=item.atBase?`<span style="color:var(--muted);font-size:.8rem">원가</span>`:icon;
+            const trendInfo = item.atBase ? null : getPriceTrend(item.tier, item.name);
+            const iconCell  = item.atBase
+                ? `<span style="color:var(--muted);font-size:.8rem">원가</span>`
+                : trendInfo
+                    ? `<span title="${trendInfo.label}" style="color:${trendInfo.c};cursor:default">${trendInfo.s}</span>`
+                    : icon;
             return rows+=`<tr class="${cls}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}C</span>`,`<span style="color:var(--muted)">${item.prev}C</span>`,priceCell,changeCell,pctCell,iconCell,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         });
     });
@@ -1141,8 +1148,10 @@ function renderPeakPrediction(history) {
 
     const prices = history.slice(-6).map(h => h.price);
     const n = prices.length;
-    const cur = prices[n - 1];
+    const cur  = prices[n - 1];
     const base = history[0].base;
+    const minP = PRICE_MIN[tier] ?? base;
+    const maxP = PRICE_MAX[tier] ?? base * 2;
 
     // 연속 기울기 계산
     const slopes = [];
@@ -1189,8 +1198,9 @@ function renderPeakPrediction(history) {
     const baseNote = p !== null
         ? ` &nbsp;·&nbsp; 원가 대비 <span style="color:${p>=0?'var(--green)':'var(--red)'}">${p>=0?'+':''}${p}%</span>`
         : '';
+    const rangeNote = ` &nbsp;·&nbsp; 범위 <span style="color:var(--muted)">${minP}~${maxP}C</span> 중 현재 <strong>${cur}C</strong>`;
 
-    el.innerHTML = `<div class="peak-pred-box">📊 추세 예측: ${html}${baseNote}</div>`;
+    el.innerHTML = `<div class="peak-pred-box">📊 추세 예측: ${html}${baseNote}${rangeNote}</div>`;
 }
 
 // ─────────────────────────────────────────────
@@ -1215,30 +1225,94 @@ function setSeason(s, el) {
     renderPlantRec();
 }
 
-// 최근 N개 데이터 선형 회귀 기울기 → 추세 신호
+// 다중 지표 기반 추세 예측 (모멘텀 + 선형회귀 + 이동평균)
 function getPriceTrend(tier, name) {
     const history = (priceData.updates || [])
         .map(u => (u.items || []).find(i => i.tier === tier && i.name === name)?.current)
         .filter(v => v != null);
-    if (history.length < 4) return null;
 
-    const pts = history.slice(-6);
-    const n   = pts.length;
-    const avg = pts.reduce((a, b) => a + b, 0) / n;
-    const cx  = k => k - (n - 1) / 2;
-    const slope = pts.reduce((acc, y, k) => acc + cx(k) * (y - avg), 0)
-                / pts.reduce((acc, _, k) => acc + cx(k) * cx(k), 0);
-    const rel = avg > 0 ? slope / avg : 0;
+    if (history.length < 3) return { s: '❓', label: '데이터 부족 (3회 미만)', c: 'var(--muted)' };
 
-    // 원가 대비 많이 하락 시 반등 기대
-    const last = (priceData.updates?.at(-1)?.items || []).find(i => i.tier === tier && i.name === name);
-    if (last?.base > 0 && last.current < last.base * 0.88)
-        return { s: '🔄', label: '반등 기대', c: 'var(--blue)' };
-    if (rel >  0.025) return { s: '⬆⬆', label: '강한 상승', c: 'var(--green)' };
-    if (rel >  0.006) return { s: '⬆',   label: '상승',     c: 'var(--green)' };
-    if (rel < -0.025) return { s: '⬇⬇', label: '강한 하락', c: 'var(--red)' };
-    if (rel < -0.006) return { s: '⬇',   label: '하락',     c: 'var(--red)' };
-    return { s: '↔', label: '횡보', c: 'var(--muted)' };
+    const n    = history.length;
+    const last = history[n - 1];
+    const base = BASE_PRICES[tier] || 3;
+    const min  = PRICE_MIN[tier] || 2;
+    const max  = PRICE_MAX[tier] || 4;
+    const range = max - min || 1;
+    const pos  = (last - min) / range; // 0.0(최솟값) ~ 1.0(최댓값)
+
+    // ── 1. 모멘텀: 최근 4회 변동 방향 ──
+    const recentDiffs = [];
+    for (let i = Math.max(1, n - 4); i < n; i++) recentDiffs.push(history[i] - history[i - 1]);
+    const momentumSum = recentDiffs.reduce((a, b) => a + b, 0);
+    const momentumDir = momentumSum > 0 ? 1 : momentumSum < 0 ? -1 : 0;
+
+    // 연속 방향 감지 (streak)
+    let streak = 0, streakDir = 0;
+    for (let i = recentDiffs.length - 1; i >= 0; i--) {
+        const d = recentDiffs[i] > 0 ? 1 : recentDiffs[i] < 0 ? -1 : 0;
+        if (d === 0) break;
+        if (streakDir === 0) streakDir = d;
+        else if (d !== streakDir) break;
+        streak++;
+    }
+
+    // 사이클 감지 (교대 패턴)
+    let altCount = 0;
+    for (let i = 1; i < recentDiffs.length; i++) {
+        if (recentDiffs[i] !== 0 && recentDiffs[i - 1] !== 0 &&
+            Math.sign(recentDiffs[i]) !== Math.sign(recentDiffs[i - 1])) altCount++;
+    }
+    const isOscillating = altCount >= recentDiffs.length - 1 && recentDiffs.length >= 3;
+
+    // ── 2. 선형 회귀 (최근 12회) ──
+    const pts = history.slice(-Math.min(n, 12));
+    const m   = pts.length;
+    const avgY = pts.reduce((a, b) => a + b, 0) / m;
+    const cx   = k => k - (m - 1) / 2;
+    const denom = pts.reduce((acc, _, k) => acc + cx(k) ** 2, 0);
+    const slope = denom > 0
+        ? pts.reduce((acc, y, k) => acc + cx(k) * (y - avgY), 0) / denom
+        : 0;
+    const relSlope = base > 0 ? slope / base : 0;
+    const regDir   = relSlope > 0.008 ? 1 : relSlope < -0.008 ? -1 : 0;
+
+    // R² — 얼마나 일직선에 가까운지 (신뢰도)
+    const sse = pts.reduce((acc, y, k) => acc + (y - (avgY + slope * cx(k))) ** 2, 0);
+    const sst = pts.reduce((acc, y)    => acc + (y - avgY) ** 2, 0);
+    const r2  = sst > 0 ? Math.max(0, 1 - sse / sst) : 0;
+    const conf = r2 > 0.6 ? ' (확실)' : r2 < 0.25 ? ' (불확실)' : '';
+
+    // ── 3. 이동평균 교차 (MA3 vs MA6) ──
+    const ma3 = history.slice(-3).reduce((a, b) => a + b, 0) / 3;
+    const ma6 = n >= 6 ? history.slice(-6).reduce((a, b) => a + b, 0) / 6 : null;
+    const maDir = ma6 != null ? (ma3 > ma6 * 1.005 ? 1 : ma3 < ma6 * 0.995 ? -1 : 0) : 0;
+
+    // ── 4. 종합 점수 (-3 ~ +3) ──
+    const score = momentumDir + regDir + maDir;
+
+    // ── 특수 신호 (최솟값/최댓값 기반) ──
+    // 최솟값 도달 → 강한 반등 기대
+    if (last <= min) return { s: '🔄', label: `최솟값 도달 (${min}C) — 반등 기대`, c: 'var(--blue)' };
+    // 최솟값 근처 (하위 20%) → 반등 가능성
+    if (pos <= 0.2)  return { s: '🔄', label: `저점 근처 (${min}~${max}C 중 ${last}C) — 반등 가능성`, c: 'var(--blue)' };
+    // 최댓값 도달 → 하락 예측
+    if (last >= max) return { s: '⬇⬇', label: `최댓값 도달 (${max}C) — 하락 예측`, c: 'var(--red)' };
+    // 최댓값 근처 (상위 20%) → 하락 가능성
+    if (pos >= 0.8)  return { s: '⬇',  label: `고점 근처 (${min}~${max}C 중 ${last}C) — 하락 가능성`, c: 'var(--red)' };
+
+    // 사이클 패턴
+    if (isOscillating) return { s: '〰️', label: '등락 반복 패턴', c: 'var(--blue)' };
+    // 3회 연속 같은 방향
+    if (streak >= 3 && streakDir === 1)  return { s: '⬆⬆', label: `연속 상승 중${conf}`, c: 'var(--green)' };
+    if (streak >= 3 && streakDir === -1) return { s: '⬇⬇', label: `연속 하락 중${conf}`, c: 'var(--red)' };
+
+    // ── 점수 기반 신호 ──
+    if (score >= 2)  return { s: '⬆⬆', label: `강한 상승 예측${conf}`, c: 'var(--green)' };
+    if (score === 1) return { s: '⬆',   label: `상승 가능성${conf}`,   c: 'var(--green)' };
+    if (score <= -2) return { s: '⬇⬇', label: `강한 하락 예측${conf}`, c: 'var(--red)' };
+    if (score === -1)return { s: '⬇',   label: `하락 가능성${conf}`,   c: 'var(--red)' };
+    return { s: '↔', label: '방향성 불명확', c: 'var(--muted)' };
 }
 
 function renderPlantRec() {
