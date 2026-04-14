@@ -117,11 +117,14 @@
         .pt tbody tr{cursor:pointer;transition:background .1s;}
         .pt tbody tr:hover td{background:rgba(251,191,36,.05);}
         .pt tbody td{padding:10px 14px;border-top:1px solid var(--border);font-size:.87rem;}
-        .group-header td{background:rgba(251,191,36,.06)!important;border-top:2px solid var(--border)!important;padding:8px 14px!important;font-size:.82rem;font-weight:700;color:var(--gold);cursor:default;}
+        .group-header td{background:rgba(251,191,36,.06)!important;border-top:2px solid rgba(251,191,36,.3)!important;padding:8px 14px!important;font-size:.82rem;font-weight:700;color:var(--gold);cursor:default;}
         .group-header:hover td{background:rgba(251,191,36,.06)!important;}
         .group-icon{font-size:.9rem;margin-right:2px;}
         .group-count{font-size:.7rem;color:var(--muted);font-weight:500;margin-left:6px;}
         .group-child td:nth-child(2){padding-left:28px!important;}
+        .group-first td{border-top:2px solid var(--border)!important;}
+        .at-base{opacity:.55;}
+        .at-base:hover td{background:rgba(255,255,255,.02)!important;}
         .up{color:var(--green);font-weight:700;}
         .dn{color:var(--red);font-weight:700;}
         .fl{color:var(--muted);}
@@ -671,6 +674,27 @@ const SEASON_CROPS = {
 const CYCLE_NORMAL   = 19; // 심기 4분 + 5단계×3분
 const CYCLE_SEASONAL = 16; // 심기 4분 + 4단계×3분 (2단계부터 시작)
 
+// ── 전체 작물 목록 & 원가 ──
+const ALL_CROPS = ['상추','딸기','옥수수','오렌지','토마토','바나나','양배추','파인애플','레몬','무','석류','포도'];
+const BASE_PRICES = { '커먼': 3, '언커먼': 6, '레어': 10 };
+const TIER_PREFIX = { '커먼': '', '언커먼': '신선한 ', '레어': '최상급 ' };
+
+// 디스코드에 없는 작물(원가 = 현재가) 을 자동 채움
+function fillMissingCrops(items) {
+    const existing = new Set(items.map(i => `${i.tier}||${i.name}`));
+    const filled = [...items];
+    ALL_CROPS.forEach(base => {
+        ['커먼','언커먼','레어'].forEach(tier => {
+            const name = TIER_PREFIX[tier] + base;
+            if (!existing.has(`${tier}||${name}`)) {
+                const b = BASE_PRICES[tier];
+                filled.push({ tier, name, base: b, prev: b, current: b, change: 0, atBase: true });
+            }
+        });
+    });
+    return filled;
+}
+
 let priceData     = loadLocal();
 let activeFilter  = 'all';
 let calcMode      = 'indiv';
@@ -916,7 +940,7 @@ function renderAll(data) {
         document.getElementById('tableWrap').innerHTML=`<div class="empty"><div class="empty-i">🌱</div><div class="empty-t">시세 데이터가 없습니다</div><div class="empty-s">Firebase 연결을 기다리거나 시세를 직접 붙여넣어 주세요</div></div>`;
         return;
     }
-    const items=data.current;
+    const items=fillMissingCrops(data.current);
     const rising=items.filter(i=>i.change>0).length;
     const falling=items.filter(i=>i.change<0).length;
     const profIt=items.filter(i=>i.current>i.base);
@@ -989,15 +1013,22 @@ function renderTable(items) {
     if(!groupArr.length){document.getElementById('tableWrap').innerHTML=`<div class="empty" style="padding:36px"><div class="empty-i">🔍</div><div class="empty-t">조건에 맞는 아이템이 없습니다</div></div>`;return;}
 
     let rows='';
-    groupArr.forEach(([baseName,groupItems])=>{
-        if(groupItems.length>1){
+    groupArr.forEach(([baseName,groupItems],gi)=>{
+        const multi=groupItems.length>1;
+        if(multi){
             rows+=`<tr class="group-header"><td colspan="9"><span class="group-icon">🌾</span> ${baseName} <span class="group-count">${groupItems.length}종</span></td></tr>`;
         }
-        groupItems.forEach(item=>{
+        groupItems.forEach((item,ii)=>{
             const p=pct(item),cc=item.change>0?'up':item.change<0?'dn':'fl',pc=p>0?'pp':p<0?'pn':'pz',icon=item.change>0?'📈':item.change<0?'📉':'➡️';
             const hasAlert=!!priceAlerts[alertKey(item.tier,item.name)];
             const bell=`<button class="bell-btn${hasAlert?' active':''}" onclick="event.stopPropagation();openAlertModal('${esc(item.tier)}','${esc(item.name)}',${item.current})" title="${hasAlert?`알림: ${priceAlerts[alertKey(item.tier,item.name)].direction==='above'?'≥':'≤'}${priceAlerts[alertKey(item.tier,item.name)].targetPrice}G`:'가격 알림 설정'}">🔔</button>`;
-            return rows+=`<tr class="${groupItems.length>1?'group-child':''}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`,`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`,`<span class="${pc}">${p>=0?'+':''}${p}%</span>`,icon,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
+            // 단일 작물 그룹은 헤더가 없으므로 첫 행에 구분선 추가
+            const cls=[multi?'group-child':'',(!multi&&gi>0&&ii===0)?'group-first':'',item.atBase?'at-base':''].filter(Boolean).join(' ');
+            const priceCell=item.atBase?`<span style="font-weight:700;color:var(--muted)">${item.current}G</span>`:`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`;
+            const changeCell=item.atBase?`<span class="fl">–</span>`:`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`;
+            const pctCell=item.atBase?`<span class="fl">–</span>`:`<span class="${pc}">${p>=0?'+':''}${p}%</span>`;
+            const iconCell=item.atBase?`<span style="color:var(--muted);font-size:.8rem">원가</span>`:icon;
+            return rows+=`<tr class="${cls}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,priceCell,changeCell,pctCell,iconCell,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         });
     });
     document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th><th>알림</th></tr></thead><tbody>${rows}</tbody></table></div>`;
