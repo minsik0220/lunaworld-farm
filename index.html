@@ -340,6 +340,27 @@
         .seasonal-row td{background:rgba(251,191,36,.04);}
         .trend-sig{font-size:.78rem;font-weight:700;}
 
+        /* ── Bell / Timer quick buttons ── */
+        .bell-btn,.tq-btn{
+            background:none;border:none;cursor:pointer;
+            font-size:.9rem;padding:2px 5px;border-radius:5px;
+            transition:color .15s;color:var(--muted);
+        }
+        .bell-btn:hover{color:var(--gold);}
+        .bell-btn.active{color:var(--gold);}
+        .tq-btn:hover{color:var(--green);}
+
+        /* ── Peak prediction ── */
+        .peak-pred-box{
+            background:var(--bg2);border:1px solid var(--border);
+            border-radius:10px;padding:12px 14px;
+            font-size:.85rem;margin-top:14px;line-height:1.6;
+        }
+
+        /* ── Alert modal radio ── */
+        .alert-dir-wrap{display:flex;gap:16px;margin-top:7px;}
+        .alert-dir-wrap label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.87rem;color:var(--text);}
+
         /* ── Responsive ── */
         @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr);}.rec-grid{grid-template-columns:repeat(3,1fr);}.plant-top3{grid-template-columns:repeat(3,1fr);}}
         @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr);}.rec-grid{grid-template-columns:1fr 1fr;}.pt thead th,.pt tbody td{padding:8px 9px;font-size:.78rem;}.logo{font-size:1.1rem;}.plant-top3{grid-template-columns:1fr 1fr;}}
@@ -543,6 +564,30 @@
         </div>
         <canvas id="chartCanvas" height="220"></canvas>
         <div class="chart-stats" id="chartStats"></div>
+        <div id="peakPrediction"></div>
+    </div>
+</div>
+
+<!-- ══ Alert Modal ══ -->
+<div class="overlay" id="alertModal" onclick="onBg(event,'alertModal')">
+    <div class="mbox" style="max-width:380px">
+        <div class="mhead">
+            <div class="mtitle" id="alertModalTitle">🔔 가격 알림 설정</div>
+            <button class="mclose" onclick="closeModal('alertModal')">✕</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">목표 가격 (G)</label>
+            <input type="number" class="form-input" id="alertPrice" min="1" placeholder="목표 가격 입력...">
+        </div>
+        <div class="form-group">
+            <label class="form-label">알림 조건</label>
+            <div class="alert-dir-wrap">
+                <label><input type="radio" name="alertDir" value="above" id="alertAbove" checked> 이상 (올라갈 때)</label>
+                <label><input type="radio" name="alertDir" value="below" id="alertBelow"> 이하 (내려갈 때)</label>
+            </div>
+        </div>
+        <button class="form-submit" onclick="submitAlert()">알림 설정</button>
+        <button class="btn btn-danger" id="removeAlertBtn" style="width:100%;margin-top:8px;padding:9px;display:none" onclick="removeAlertAndClose()">🗑 알림 제거</button>
     </div>
 </div>
 
@@ -607,6 +652,7 @@ const FIREBASE_CONFIG = {
 // ─────────────────────────────────────────────
 const LS_KEY    = 'lw_farm_v5';
 const LS_TIMERS = 'lw_timers_v2';
+const LS_ALERTS = 'lw_alerts_v1';
 const TIER_ORD  = { '레어': 0, '언커먼': 1, '커먼': 2 };
 const RANKS     = ['🥇','🥈','🥉','4️⃣','5️⃣'];
 
@@ -620,11 +666,12 @@ const SEASON_CROPS = {
 const CYCLE_NORMAL   = 19; // 심기 4분 + 5단계×3분
 const CYCLE_SEASONAL = 16; // 심기 4분 + 4단계×3분 (2단계부터 시작)
 
-let priceData    = loadLocal();
-let activeFilter = 'all';
-let calcMode     = 'indiv';
-let chartInst    = null;
+let priceData     = loadLocal();
+let activeFilter  = 'all';
+let calcMode      = 'indiv';
+let chartInst     = null;
 let currentSeason = '봄';
+let priceAlerts   = {};   // key: "tier||name"  value: { targetPrice, direction, lastFiredAt }
 let calcQty     = {};
 let timers      = loadTimers();
 let timerTick   = null;
@@ -643,6 +690,10 @@ function loadTimers() {
     catch { return []; }
 }
 function saveTimers() { try { localStorage.setItem(LS_TIMERS, JSON.stringify(timers)); } catch {} }
+function loadAlerts() {
+    try { return JSON.parse(localStorage.getItem(LS_ALERTS)) || {}; } catch { return {}; }
+}
+function saveAlerts() { try { localStorage.setItem(LS_ALERTS, JSON.stringify(priceAlerts)); } catch {} }
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -873,6 +924,7 @@ function renderAll(data) {
     renderRec(items);
     renderTable(items);
     renderPlantRec();
+    checkAlerts(items);
 }
 
 function renderRec(items) {
@@ -916,12 +968,154 @@ function renderTable(items) {
     else if(s==='tier') list.sort((a,b)=>(TIER_ORD[a.tier]??9)-(TIER_ORD[b.tier]??9)||a.name.localeCompare(b.name));
     else if(s==='name') list.sort((a,b)=>a.name.localeCompare(b.name));
     if(!list.length){document.getElementById('tableWrap').innerHTML=`<div class="empty" style="padding:36px"><div class="empty-i">🔍</div><div class="empty-t">조건에 맞는 아이템이 없습니다</div></div>`;return;}
-    document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th></tr></thead><tbody>${
+    document.getElementById('tableWrap').innerHTML=`<div class="tw"><table class="pt"><thead><tr><th>티어</th><th>작물명</th><th>원가</th><th>이전가</th><th>현재가</th><th>변동폭</th><th>수익률</th><th>추세</th><th>알림</th></tr></thead><tbody>${
         list.map(item=>{
             const p=pct(item),cc=item.change>0?'up':item.change<0?'dn':'fl',pc=p>0?'pp':p<0?'pn':'pz',icon=item.change>0?'📈':item.change<0?'📉':'➡️';
-            return `<tr onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`,`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`,`<span class="${pc}">${p>=0?'+':''}${p}%</span>`,icon].map(c=>`<td>${c}</td>`).join('')}</tr>`;
+            const hasAlert=!!priceAlerts[alertKey(item.tier,item.name)];
+            const bell=`<button class="bell-btn${hasAlert?' active':''}" onclick="event.stopPropagation();openAlertModal('${esc(item.tier)}','${esc(item.name)}',${item.current})" title="${hasAlert?`알림: ${priceAlerts[alertKey(item.tier,item.name)].direction==='above'?'≥':'≤'}${priceAlerts[alertKey(item.tier,item.name)].targetPrice}G`:'가격 알림 설정'}">🔔</button>`;
+            return `<tr onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}G</span>`,`<span style="color:var(--muted)">${item.prev}G</span>`,`<span style="font-weight:700;color:var(--gold)">${item.current}G</span>`,`<span class="${cc}">${item.change>0?'+':''}${item.change}G</span>`,`<span class="${pc}">${p>=0?'+':''}${p}%</span>`,icon,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         }).join('')
     }</tbody></table></div>`;
+}
+
+// ─────────────────────────────────────────────
+// Price Alerts
+// ─────────────────────────────────────────────
+function alertKey(tier, name) { return `${tier}||${name}`; }
+
+let _alertTier = '', _alertName = '';
+
+function openAlertModal(tier, name, currentPrice) {
+    _alertTier = tier; _alertName = name;
+    const ex = priceAlerts[alertKey(tier, name)];
+    document.getElementById('alertModalTitle').innerHTML = `🔔 가격 알림 — ${tbadge(tier)} ${name}`;
+    document.getElementById('alertPrice').value = ex?.targetPrice ?? currentPrice;
+    document.getElementById(ex?.direction === 'below' ? 'alertBelow' : 'alertAbove').checked = true;
+    document.getElementById('removeAlertBtn').style.display = ex ? 'block' : 'none';
+    openModal('alertModal');
+    setTimeout(() => document.getElementById('alertPrice').focus(), 100);
+}
+
+function submitAlert() {
+    const price = parseInt(document.getElementById('alertPrice').value);
+    if (!price || price <= 0) { showToast('목표 가격을 입력하세요', 'warn'); return; }
+    const dir = document.querySelector('input[name="alertDir"]:checked').value;
+    priceAlerts[alertKey(_alertTier, _alertName)] = { targetPrice: price, direction: dir, lastFiredAt: 0 };
+    saveAlerts();
+    closeModal('alertModal');
+    renderTable();
+    showToast(`🔔 ${_alertName} ${dir === 'above' ? '≥' : '≤'} ${price}G 알림 설정`);
+    // 알림 권한 요청
+    if (Notification.permission === 'default') Notification.requestPermission().then(updateNotifBtn);
+}
+
+function removeAlertAndClose() {
+    delete priceAlerts[alertKey(_alertTier, _alertName)];
+    saveAlerts();
+    closeModal('alertModal');
+    renderTable();
+    showToast('알림 제거됨');
+}
+
+function checkAlerts(items) {
+    if (!items?.length || Notification.permission !== 'granted') return;
+    const now = Date.now();
+    let changed = false;
+    items.forEach(item => {
+        const al = priceAlerts[alertKey(item.tier, item.name)];
+        if (!al) return;
+        if (now - (al.lastFiredAt || 0) < 7200000) return; // 2시간 쿨다운
+        const met = al.direction === 'above' ? item.current >= al.targetPrice
+                                             : item.current <= al.targetPrice;
+        if (met) {
+            new Notification(`🔔 가격 알림: ${item.name}`, {
+                body: `[${item.tier}] ${item.name}  현재 ${item.current}G  (목표 ${al.direction==='above'?'≥':'≤'}${al.targetPrice}G)`,
+                icon: '/favicon.ico'
+            });
+            al.lastFiredAt = now;
+            changed = true;
+            showToast(`🔔 ${item.name} 가격 알림!`);
+        }
+    });
+    if (changed) saveAlerts();
+}
+
+// ─────────────────────────────────────────────
+// Peak / Trough Prediction  (차트 모달용)
+// ─────────────────────────────────────────────
+function renderPeakPrediction(history) {
+    const el = document.getElementById('peakPrediction');
+    if (!el) return;
+
+    if (history.length < 4) {
+        el.innerHTML = `<div class="peak-pred-box" style="color:var(--muted)">📊 예측: 기록 ${history.length}회 — 4회 이상 쌓이면 추세 예측이 표시됩니다</div>`;
+        return;
+    }
+
+    const prices = history.slice(-6).map(h => h.price);
+    const n = prices.length;
+    const cur = prices[n - 1];
+    const base = history[0].base;
+
+    // 연속 기울기 계산
+    const slopes = [];
+    for (let i = 1; i < n; i++) slopes.push(prices[i] - prices[i - 1]);
+    const s1 = slopes[slopes.length - 1];                                  // 직전 기울기
+    const ds = slopes.length >= 2 ? s1 - slopes[slopes.length - 2] : 0;   // 기울기 변화량
+
+    let html = '';
+
+    if (s1 > 0) {
+        // 상승 중
+        if (ds < 0 && s1 / (-ds) > 0) {
+            const t = s1 / (-ds);                                           // 피크까지 남은 업데이트 수
+            const peak = Math.round(cur + s1 * t + 0.5 * ds * t * t);
+            const hrs  = Math.ceil(t);
+            if (peak > cur && hrs >= 1 && hrs <= 12) {
+                html = `<span style="color:var(--gold)">📈 상승 중</span> — 약 <strong>${hrs}시간 후</strong> 예상 최고가 <strong style="color:var(--gold)">${peak.toLocaleString()}G</strong>`;
+            } else {
+                html = `<span style="color:var(--gold)">📈 상승 중</span> — 고점 접근 중, 곧 반전 예상`;
+            }
+        } else {
+            const rough = Math.round(cur + s1 * 3);
+            html = `<span style="color:var(--green)">📈 가속 상승 중</span> — 3시간 내 <strong>${rough.toLocaleString()}G</strong> 이상 예상 (불확실)`;
+        }
+    } else if (s1 < 0) {
+        // 하락 중
+        if (ds > 0 && -s1 / ds > 0) {
+            const t    = -s1 / ds;
+            const trough = Math.round(cur + s1 * t + 0.5 * ds * t * t);
+            const hrs  = Math.ceil(t);
+            if (trough < cur && hrs >= 1 && hrs <= 12) {
+                html = `<span style="color:var(--red)">📉 하락 중</span> — 약 <strong>${hrs}시간 후</strong> 예상 저점 <strong style="color:var(--blue)">${trough.toLocaleString()}G</strong> → 저점 매수·심기 타이밍`;
+            } else {
+                html = `<span style="color:var(--red)">📉 하락 중</span> — 저점 접근, 곧 반등 가능`;
+            }
+        } else {
+            html = `<span style="color:var(--red)">📉 하락 가속 중</span> — 저점 아직 멀 수 있음`;
+        }
+    } else {
+        html = `<span style="color:var(--muted)">↔ 횡보 중</span> — 뚜렷한 방향성 없음`;
+    }
+
+    const p = base > 0 ? ((cur - base) / base * 100).toFixed(1) : null;
+    const baseNote = p !== null
+        ? ` &nbsp;·&nbsp; 원가 대비 <span style="color:${p>=0?'var(--green)':'var(--red)'}">${p>=0?'+':''}${p}%</span>`
+        : '';
+
+    el.innerHTML = `<div class="peak-pred-box">📊 추세 예측: ${html}${baseNote}</div>`;
+}
+
+// ─────────────────────────────────────────────
+// Timer quick-add (심기 추천 → 타이머 연동)
+// ─────────────────────────────────────────────
+function quickAddTimer(name, cycleMin) {
+    document.getElementById('timerName').value = name;
+    document.getElementById('timerH').value = 0;
+    document.getElementById('timerM').value = cycleMin;
+    document.getElementById('timerS').value = 0;
+    openModal('addTimerModal');
+    setTimeout(() => document.getElementById('timerName').focus(), 100);
 }
 
 // ─────────────────────────────────────────────
@@ -1039,7 +1233,7 @@ function renderPlantRec() {
         <thead><tr>
             <th>순위</th><th>작물명</th><th>시즌</th>
             <th>커먼 /h</th><th>언커먼 /h</th><th>레어 /h</th>
-            <th>사이클</th>
+            <th>사이클</th><th>타이머</th>
         </tr></thead>
         <tbody>${ranked.map((g, i) => `
             <tr class="${g.seasonal ? 'seasonal-row' : ''}">
@@ -1050,6 +1244,7 @@ function renderPlantRec() {
                 ${cell(g.uncommon, g.trend.uncommon, g.cycle)}
                 ${cell(g.rare,     g.trend.rare,     g.cycle)}
                 <td style="color:var(--muted)">${g.cycle}분</td>
+                <td><button class="tq-btn" onclick="quickAddTimer('${esc(g.name)}',${g.cycle})" title="${g.cycle}분 타이머 추가">⏱</button></td>
             </tr>`).join('')}
         </tbody></table></div>`;
 }
@@ -1062,10 +1257,12 @@ function openChart(tier,name){
     document.getElementById('chartTitle').innerHTML=`${tbadge(tier)} ${name} 가격 추이`;
     openModal('chartModal');
     if(chartInst){chartInst.destroy();chartInst=null;}
+    document.getElementById('peakPrediction').innerHTML='';
     if(history.length<2){
         document.getElementById('chartCanvas').style.display='none';
         const cur=history[0];
         document.getElementById('chartStats').innerHTML=cur?`<div class="cs" style="grid-column:1/-1"><div class="csv" style="color:var(--gold)">${cur.price}G</div><div class="csl">현재가 (기록 1건)</div></div>`:`<div class="cs" style="grid-column:1/-1"><div class="csl">기록 없음</div></div>`;
+        renderPeakPrediction(history);
         return;
     }
     document.getElementById('chartCanvas').style.display='block';
@@ -1077,6 +1274,7 @@ function openChart(tier,name){
     });
     const mx=Math.max(...prices),mn=Math.min(...prices),cp=pct({current:prices.at(-1),base});
     document.getElementById('chartStats').innerHTML=`<div class="cs"><div class="csv" style="color:var(--green)">${mx}G</div><div class="csl">기록 최고가</div></div><div class="cs"><div class="csv" style="color:var(--red)">${mn}G</div><div class="csl">기록 최저가</div></div><div class="cs"><div class="csv ${cp>=0?'pp':'pn'}">${cp>=0?'+':''}${cp}%</div><div class="csl">현재 수익률</div></div>`;
+    renderPeakPrediction(history);
 }
 
 // ─────────────────────────────────────────────
@@ -1318,6 +1516,7 @@ function showToast(msg,type='ok'){
 // ─────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────
+priceAlerts = loadAlerts();
 restoreTimers();
 renderAll(priceData);
 renderPlantRec();
