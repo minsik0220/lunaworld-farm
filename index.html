@@ -636,8 +636,20 @@ function manualUpdate() {
     if(d.updates.length>72) d.updates=d.updates.slice(-72);
     saveLocal(d); priceData = d;
     document.getElementById('discordInput').value='';
-    showToast(`✅ ${items.length}개 아이템 업데이트!`);
     renderAll(d);
+
+    // Firebase에도 저장 (다른 사람들도 볼 수 있게)
+    try {
+        if (firebase.apps.length > 0) {
+            firebase.database().ref('prices').set(d)
+                .then(() => showToast(`✅ ${items.length}개 아이템 업데이트! (전체 공유됨)`))
+                .catch(e => { showToast(`✅ ${items.length}개 업데이트 (로컬만)`, 'warn'); console.error(e); });
+        } else {
+            showToast(`✅ ${items.length}개 아이템 업데이트!`);
+        }
+    } catch(e) {
+        showToast(`✅ ${items.length}개 아이템 업데이트!`);
+    }
 }
 
 function clearAll() {
