@@ -327,20 +327,18 @@
             border:1px solid var(--border);transition:all .2s;
         }
         .plant-top-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(251,191,36,.15);}
-        .plant-top-card.tc{border-top:3px solid var(--common);}
-        .plant-top-card.tu{border-top:3px solid var(--uncommon);}
-        .plant-top-card.tr{border-top:3px solid var(--rare);}
         .plant-rank{font-size:1.6rem;margin-bottom:6px;}
         .plant-season-badge{
             display:inline-block;padding:2px 8px;border-radius:5px;
             font-size:.7rem;font-weight:700;margin-bottom:6px;
             background:rgba(251,191,36,.15);color:var(--gold);border:1px solid rgba(251,191,36,.3);
         }
-        .plant-name{font-size:.9rem;font-weight:700;margin:6px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-        .plant-hourly{font-size:1.5rem;font-weight:800;color:var(--gold);}
-        .plant-hourly span{font-size:.85rem;font-weight:600;color:var(--muted);}
-        .plant-detail{font-size:.72rem;color:var(--muted);margin-top:5px;}
+        .plant-detail{font-size:.72rem;color:var(--muted);margin-top:6px;}
+        .plant-tier-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+        .plant-tier-row{display:flex;align-items:center;gap:7px;font-size:.83rem;}
+        .plant-tier-h{font-weight:800;color:var(--gold);}
         .seasonal-row td{background:rgba(251,191,36,.04);}
+        .trend-sig{font-size:.78rem;font-weight:700;}
 
         /* ── Responsive ── */
         @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr);}.rec-grid{grid-template-columns:repeat(3,1fr);}.plant-top3{grid-template-columns:repeat(3,1fr);}}
@@ -653,6 +651,12 @@ function pct(item) { return +((item.current - item.base) / item.base * 100).toFi
 function tcls(t) { return t==='커먼'?'tc':t==='언커먼'?'tu':'tr'; }
 function tbadge(t) { return `<span class="tb ${tcls(t)}">${t}</span>`; }
 function esc(s) { return s.replace(/'/g,"\\'"); }
+// 언커먼 "신선한 X", 레어 "최상급 X" → 베이스 작물명 "X" 추출
+function getBaseName(item) {
+    if (item.tier === '언커먼') return item.name.replace(/^신선한\s*/, '');
+    if (item.tier === '레어')   return item.name.replace(/^최상급\s*/, '');
+    return item.name;
+}
 function fmtDt(ts) {
     return new Date(ts).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
@@ -930,8 +934,34 @@ function setSeason(s, el) {
     renderPlantRec();
 }
 
+// 최근 N개 데이터 선형 회귀 기울기 → 추세 신호
+function getPriceTrend(tier, name) {
+    const history = (priceData.updates || [])
+        .map(u => (u.items || []).find(i => i.tier === tier && i.name === name)?.current)
+        .filter(v => v != null);
+    if (history.length < 4) return null;
+
+    const pts = history.slice(-6);
+    const n   = pts.length;
+    const avg = pts.reduce((a, b) => a + b, 0) / n;
+    const cx  = k => k - (n - 1) / 2;
+    const slope = pts.reduce((acc, y, k) => acc + cx(k) * (y - avg), 0)
+                / pts.reduce((acc, _, k) => acc + cx(k) * cx(k), 0);
+    const rel = avg > 0 ? slope / avg : 0;
+
+    // 원가 대비 많이 하락 시 반등 기대
+    const last = (priceData.updates?.at(-1)?.items || []).find(i => i.tier === tier && i.name === name);
+    if (last?.base > 0 && last.current < last.base * 0.88)
+        return { s: '🔄', label: '반등 기대', c: 'var(--blue)' };
+    if (rel >  0.025) return { s: '⬆⬆', label: '강한 상승', c: 'var(--green)' };
+    if (rel >  0.006) return { s: '⬆',   label: '상승',     c: 'var(--green)' };
+    if (rel < -0.025) return { s: '⬇⬇', label: '강한 하락', c: 'var(--red)' };
+    if (rel < -0.006) return { s: '⬇',   label: '하락',     c: 'var(--red)' };
+    return { s: '↔', label: '횡보', c: 'var(--muted)' };
+}
+
 function renderPlantRec() {
-    const items = priceData.current || [];
+    const items   = priceData.current || [];
     const top3El  = document.getElementById('plantTop3');
     const tableEl = document.getElementById('plantTableWrap');
 
@@ -944,43 +974,84 @@ function renderPlantRec() {
 
     const seasonalSet = new Set(SEASON_CROPS[currentSeason] || []);
 
-    const ranked = [...items].map(item => {
-        const seasonal = seasonalSet.has(item.name);
-        const cycle    = seasonal ? CYCLE_SEASONAL : CYCLE_NORMAL;
-        const hourly   = Math.round(item.current * 60 / cycle);
-        return { ...item, seasonal, cycle, hourly };
-    }).sort((a, b) => b.hourly - a.hourly);
+    // ── 커먼/언커먼/레어 → 베이스 작물명으로 그룹핑 ──
+    const groups = {};
+    for (const item of items) {
+        const base = getBaseName(item);
+        if (!groups[base]) groups[base] = { name: base, byTier: {} };
+        groups[base].byTier[item.tier] = item;
+    }
 
-    // ── TOP 3 cards ──
-    const top3 = ranked.slice(0, 3);
-    top3El.innerHTML = top3.map((item, i) => `
-        <div class="card plant-top-card ${tcls(item.tier)}">
+    // ── 그룹별 평균 시간당 수익 계산 + 예측 ──
+    const ranked = Object.values(groups).map(g => {
+        const seasonal  = seasonalSet.has(g.name);
+        const cycle     = seasonal ? CYCLE_SEASONAL : CYCLE_NORMAL;
+        const common    = g.byTier['커먼'];
+        const uncommon  = g.byTier['언커먼'];
+        const rare      = g.byTier['레어'];
+        const tiers     = [common, uncommon, rare].filter(Boolean);
+        const avgHourly = Math.round(
+            tiers.reduce((s, i) => s + i.current, 0) / tiers.length * 60 / cycle
+        );
+        const trend = {
+            common:   common   ? getPriceTrend('커먼',   common.name)   : null,
+            uncommon: uncommon ? getPriceTrend('언커먼', uncommon.name) : null,
+            rare:     rare     ? getPriceTrend('레어',   rare.name)     : null,
+        };
+        return { name: g.name, seasonal, cycle, common, uncommon, rare, avgHourly, trend };
+    }).sort((a, b) => b.avgHourly - a.avgHourly);
+
+    // ── TOP 3 카드 ──
+    top3El.innerHTML = ranked.slice(0, 3).map((g, i) => {
+        const tierRows = [
+            ['커먼',   g.common,   g.trend.common],
+            ['언커먼', g.uncommon, g.trend.uncommon],
+            ['레어',   g.rare,     g.trend.rare],
+        ].filter(([, item]) => item).map(([, item, tr]) => {
+            const h      = Math.round(item.current * 60 / g.cycle);
+            const trHtml = tr ? `<span class="trend-sig" style="color:${tr.c}">${tr.s}</span>` : '';
+            return `<div class="plant-tier-row">${tbadge(item.tier)}<span class="plant-tier-h">${h.toLocaleString()}G/h</span>${trHtml}</div>`;
+        }).join('');
+        return `
+        <div class="card plant-top-card">
             <div class="plant-rank">${['🥇','🥈','🥉'][i]}</div>
-            ${item.seasonal ? '<div class="plant-season-badge">⭐ 시즌 작물</div>' : ''}
-            <div class="plant-name">${tbadge(item.tier)} ${item.name}</div>
-            <div class="plant-hourly">${item.hourly.toLocaleString()}G<span>/h</span></div>
-            <div class="plant-detail">현재가 ${item.current}G &nbsp;·&nbsp; ${item.cycle}분 사이클</div>
-        </div>`).join('');
+            ${g.seasonal ? '<div class="plant-season-badge">⭐ 시즌 작물</div>' : ''}
+            <div style="font-size:1rem;font-weight:800;margin:6px 0 2px">${g.name}</div>
+            <div class="plant-tier-list">${tierRows}</div>
+            <div class="plant-detail">${g.cycle}분 사이클 &nbsp;·&nbsp; 평균 ${g.avgHourly.toLocaleString()}G/h</div>
+        </div>`;
+    }).join('');
 
-    // ── Full table ──
-    tableEl.innerHTML = `<div class="tw"><table class="pt">
+    // ── 전체 순위 테이블 ──
+    const histCount   = (priceData.updates || []).length;
+    const noTrendNote = histCount < 4
+        ? `<div style="font-size:.78rem;color:var(--muted);padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:7px;margin-bottom:8px">⚠️ 시세 기록 ${histCount}회 — 예측 신호는 4회 이상 쌓여야 표시됩니다</div>`
+        : '';
+
+    function cell(item, tr, cycle) {
+        if (!item) return `<td style="color:var(--border)">–</td>`;
+        const h      = Math.round(item.current * 60 / cycle);
+        const trHtml = tr ? ` <span class="trend-sig" style="color:${tr.c}">${tr.s}</span>` : '';
+        return `<td style="font-weight:700">${h.toLocaleString()}G/h${trHtml}</td>`;
+    }
+
+    tableEl.innerHTML = noTrendNote + `<div class="tw"><table class="pt">
         <thead><tr>
-            <th>순위</th><th>티어</th><th>작물명</th>
-            <th>현재가</th><th>사이클</th><th>시간당 수익</th>
+            <th>순위</th><th>작물명</th><th>시즌</th>
+            <th>커먼 /h</th><th>언커먼 /h</th><th>레어 /h</th>
+            <th>사이클</th>
         </tr></thead>
-        <tbody>${ranked.map((item, i) => `
-            <tr class="${item.seasonal ? 'seasonal-row' : ''}">
-                <td style="font-weight:700;color:var(--muted);width:42px">${i + 1}</td>
-                <td>${tbadge(item.tier)}</td>
-                <td style="font-weight:600">${item.seasonal ? '⭐ ' : ''}${item.name}</td>
-                <td style="color:var(--gold)">${item.current}G</td>
-                <td style="color:var(--muted)">${item.cycle}분</td>
-                <td style="font-weight:800;color:${item.seasonal ? 'var(--uncommon)' : 'var(--gold)'}">
-                    ${item.hourly.toLocaleString()}G/h
-                </td>
+        <tbody>${ranked.map((g, i) => `
+            <tr class="${g.seasonal ? 'seasonal-row' : ''}">
+                <td style="color:var(--muted);font-weight:700">${i + 1}</td>
+                <td style="font-weight:700">${g.seasonal ? '⭐ ' : ''}${g.name}</td>
+                <td style="color:var(--muted);font-size:.78rem">${g.seasonal ? currentSeason : '–'}</td>
+                ${cell(g.common,   g.trend.common,   g.cycle)}
+                ${cell(g.uncommon, g.trend.uncommon, g.cycle)}
+                ${cell(g.rare,     g.trend.rare,     g.cycle)}
+                <td style="color:var(--muted)">${g.cycle}분</td>
             </tr>`).join('')}
-        </tbody>
-    </table></div>`;
+        </tbody></table></div>`;
 }
 
 // ─────────────────────────────────────────────
