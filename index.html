@@ -1067,11 +1067,9 @@ function renderTable(rawItems) {
             const changeCell=item.atBase?`<span class="fl">–</span>`:`<span class="${cc}">${item.change>0?'+':''}${item.change}C</span>`;
             const pctCell=item.atBase?`<span class="fl">–</span>`:`<span class="${pc}">${p>=0?'+':''}${p}%</span>`;
             const trendInfo = getPriceTrend(item.tier, item.name);
-            const iconCell  = item.atBase
-                ? `<span style="color:var(--muted);font-size:.8rem">원가</span>`
-                : trendInfo
-                    ? `<span style="color:${trendInfo.c};white-space:nowrap">${trendInfo.s} <span style="font-size:.75rem;font-weight:600">${trendInfo.label}</span></span>`
-                    : icon;
+            const iconCell = trendInfo
+                ? `<span style="color:${trendInfo.c};white-space:nowrap">${trendInfo.s} <span style="font-size:.75rem;font-weight:600">${trendInfo.label}</span></span>`
+                : icon;
             return rows+=`<tr class="${cls}" onclick="openChart('${esc(item.tier)}','${esc(item.name)}')">${[tbadge(item.tier),`<span style="font-weight:600">${item.name}</span>`,`<span style="color:var(--muted)">${item.base}C</span>`,`<span style="color:var(--muted)">${item.prev}C</span>`,priceCell,changeCell,pctCell,iconCell,bell].map(c=>`<td>${c}</td>`).join('')}</tr>`;
         });
     });
