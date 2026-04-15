@@ -1294,20 +1294,29 @@ function getPriceTrend(tier, name) {
 
     // ── 특수 신호 (최솟값/최댓값 기반) ──
     // 최근 연속으로 최댓값/최솟값에 머문 횟수 확인
-    const recentPrices = history.slice(-4);
-    const consecAtMax = recentPrices.length >= 2 && recentPrices.slice(-2).every(p => p >= max);
-    const consecAtMin = recentPrices.length >= 2 && recentPrices.slice(-2).every(p => p <= min);
+    const recentPrices = history.slice(-6);
+    const consecMaxCount = [...recentPrices].reverse().findIndex(p => p < max);
+    const consecMinCount = [...recentPrices].reverse().findIndex(p => p > min);
+    const consecAtMax = consecMaxCount === -1 ? recentPrices.length : consecMaxCount;
+    const consecAtMin = consecMinCount === -1 ? recentPrices.length : consecMinCount;
 
     if (last >= max) {
-        if (consecAtMax) {
-            // 이미 여러 번 최댓값 유지 중 → 방향 불명확
+        if (consecAtMax >= 3) {
+            // 3회 이상 최고점 유지 → 우량주
+            return { s: '👑', label: `최고점 ${consecAtMax}회 연속 유지 — 우량주`, c: 'var(--gold)' };
+        } else if (consecAtMax >= 2) {
+            // 2회 연속 최고점 유지
+            return { s: '⭐', label: `최고점 연속 유지 중 (${max}C)`, c: 'var(--gold)' };
         } else {
             // 방금 최댓값 도달 → 하락 예측
             return { s: '⬇⬇', label: `최댓값 도달 (${max}C) — 하락 예측`, c: 'var(--red)' };
         }
     } else if (last <= min) {
-        if (consecAtMin) {
-            // 이미 여러 번 최솟값 유지 중 → 방향 불명확
+        if (consecAtMin >= 3) {
+            // 3회 이상 최저점 유지
+            return { s: '💤', label: `최저점 ${consecAtMin}회 연속 유지`, c: 'var(--muted)' };
+        } else if (consecAtMin >= 2) {
+            return { s: '💤', label: `최저점 연속 유지 중 (${min}C)`, c: 'var(--muted)' };
         } else {
             // 방금 최솟값 도달 → 반등 기대
             return { s: '🔄', label: `최솟값 도달 (${min}C) — 반등 기대`, c: 'var(--blue)' };
