@@ -1301,14 +1301,18 @@ function getPriceTrend(tier, name) {
     const consecAtMin = consecMinCount === -1 ? recentPrices.length : consecMinCount;
 
     if (last >= max) {
-        if (consecAtMax >= 2) {
-            // 연속 최고점 유지 → 일반 분석으로 넘김
+        if (consecAtMax >= 3) {
+            return { s: '👑', label: `최고점 ${consecAtMax}회 연속 유지`, c: 'var(--gold)' };
+        } else if (consecAtMax >= 2) {
+            return { s: '⭐', label: `최고점 연속 유지 중 (${max}C)`, c: 'var(--gold)' };
         } else {
             return { s: '⬇⬇', label: `최댓값 도달 (${max}C) — 하락 예측`, c: 'var(--red)' };
         }
     } else if (last <= min) {
-        if (consecAtMin >= 2) {
-            // 연속 최저점 유지 → 일반 분석으로 넘김
+        if (consecAtMin >= 3) {
+            return { s: '💤', label: `최저점 ${consecAtMin}회 연속 유지`, c: 'var(--muted)' };
+        } else if (consecAtMin >= 2) {
+            return { s: '💤', label: `최저점 연속 유지 중 (${min}C)`, c: 'var(--muted)' };
         } else {
             return { s: '🔄', label: `최솟값 도달 (${min}C) — 반등 기대`, c: 'var(--blue)' };
         }
