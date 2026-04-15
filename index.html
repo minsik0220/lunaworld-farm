@@ -970,7 +970,7 @@ function renderAll(data) {
         document.getElementById('tableWrap').innerHTML=`<div class="empty"><div class="empty-i">🌱</div><div class="empty-t">시세 데이터가 없습니다</div><div class="empty-s">Firebase 연결을 기다리거나 시세를 직접 붙여넣어 주세요</div></div>`;
         return;
     }
-    const items=fillMissingCrops(data.current);
+    const items=fillMissingCrops(data.current||[]);
     const rising=items.filter(i=>i.change>0).length;
     const falling=items.filter(i=>i.change<0).length;
     const profIt=items.filter(i=>i.current>i.base);
@@ -982,7 +982,7 @@ function renderAll(data) {
     document.getElementById('sBest').textContent=best>0?`+${best}%`:'–';
     document.getElementById('sHist').textContent=`${(data.updates||[]).length}회`;
     renderRec(items);
-    renderTable(items);
+    renderTable(data.current);
     renderPlantRec();
     checkAlerts(items);
 }
@@ -1007,8 +1007,9 @@ function setFilter(f,el){
     renderTable();
 }
 
-function renderTable(items) {
-    items=items||priceData.current||[];
+function renderTable(rawItems) {
+    // 항상 fillMissingCrops 적용 — 필터/검색/정렬 변경 시에도 원가 작물 누락 방지
+    const items = fillMissingCrops(rawItems ?? priceData.current ?? []);
     if(!items.length) return;
     const q=document.getElementById('searchBox').value.toLowerCase();
     let list=[...items];
