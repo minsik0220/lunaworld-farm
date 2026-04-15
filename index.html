@@ -1292,36 +1292,12 @@ function getPriceTrend(tier, name) {
     // ── 4. 종합 점수 (-3 ~ +3) ──
     const score = momentumDir + regDir + maDir;
 
-    // ── 특수 신호 (최솟값/최댓값 기반) ──
-    // 최근 연속으로 최댓값/최솟값에 머문 횟수 확인
+    // ── 특수 신호: 3회 이상 연속 최고점만 별도 표시 ──
     const recentPrices = history.slice(-6);
     const consecMaxCount = [...recentPrices].reverse().findIndex(p => p < max);
-    const consecMinCount = [...recentPrices].reverse().findIndex(p => p > min);
     const consecAtMax = consecMaxCount === -1 ? recentPrices.length : consecMaxCount;
-    const consecAtMin = consecMinCount === -1 ? recentPrices.length : consecMinCount;
-
-    if (last >= max) {
-        if (consecAtMax >= 3) {
-            return { s: '👑', label: `최고점 ${consecAtMax}회 연속 유지`, c: 'var(--gold)' };
-        } else if (consecAtMax >= 2) {
-            return { s: '⭐', label: `최고점 연속 유지 중 (${max}C)`, c: 'var(--gold)' };
-        } else {
-            return { s: '⬇⬇', label: `최댓값 도달 (${max}C) — 하락 예측`, c: 'var(--red)' };
-        }
-    } else if (last <= min) {
-        if (consecAtMin >= 3) {
-            return { s: '💤', label: `최저점 ${consecAtMin}회 연속 유지`, c: 'var(--muted)' };
-        } else if (consecAtMin >= 2) {
-            return { s: '💤', label: `최저점 연속 유지 중 (${min}C)`, c: 'var(--muted)' };
-        } else {
-            return { s: '🔄', label: `최솟값 도달 (${min}C) — 반등 기대`, c: 'var(--blue)' };
-        }
-    } else if (pos <= 0.2) {
-        // 최솟값 근처 (하위 20%) → 반등 가능성
-        return { s: '🔄', label: `저점 근처 (${min}~${max}C 중 ${last}C) — 반등 가능성`, c: 'var(--blue)' };
-    } else if (pos >= 0.8) {
-        // 최댓값 근처 (상위 20%) → 하락 가능성
-        return { s: '⬇', label: `고점 근처 (${min}~${max}C 중 ${last}C) — 하락 가능성`, c: 'var(--red)' };
+    if (consecAtMax >= 3) {
+        return { s: '👑', label: `최고점 ${consecAtMax}회 연속 유지`, c: 'var(--gold)' };
     }
 
     // 사이클 패턴
