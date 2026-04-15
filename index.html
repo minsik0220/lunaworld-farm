@@ -1066,7 +1066,7 @@ function renderTable(rawItems) {
             const priceCell=item.atBase?`<span style="font-weight:700;color:var(--muted)">${item.current}C</span>`:`<span style="font-weight:700;color:var(--gold)">${item.current}C</span>`;
             const changeCell=item.atBase?`<span class="fl">–</span>`:`<span class="${cc}">${item.change>0?'+':''}${item.change}C</span>`;
             const pctCell=item.atBase?`<span class="fl">–</span>`:`<span class="${pc}">${p>=0?'+':''}${p}%</span>`;
-            const trendInfo = item.atBase ? null : getPriceTrend(item.tier, item.name);
+            const trendInfo = getPriceTrend(item.tier, item.name);
             const iconCell  = item.atBase
                 ? `<span style="color:var(--muted);font-size:.8rem">원가</span>`
                 : trendInfo
